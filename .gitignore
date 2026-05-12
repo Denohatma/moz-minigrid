@@ -25,12 +25,11 @@ countries/*/vectors/*.shx
 countries/*/vectors/*.prj
 data_pipeline/downloads/
 
-# Large data files
-*.csv
+# Large data files (geojson too large for git)
 *.geojson
-*.pdf
 
-# Reference documents (keep in Drive/Notion, not git)
+# Reference documents
+*.pdf
 *.docx
 
 # IDE
