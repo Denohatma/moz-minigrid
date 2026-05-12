@@ -1,0 +1,10 @@
+{
+  "name": "Rural Residential",
+  "description": "Evening-dominant profile typical of rural Mozambique settlements. ~70% of energy consumed after sunset.",
+  "profile": [
+    0.010, 0.008, 0.008, 0.008, 0.010, 0.015,
+    0.025, 0.030, 0.025, 0.020, 0.020, 0.020,
+    0.020, 0.020, 0.020, 0.025, 0.035, 0.070,
+    0.110, 0.130, 0.120, 0.090, 0.050, 0.020
+  ]
+}

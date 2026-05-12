@@ -1,0 +1,37 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: moz-postgis
+    environment:
+      POSTGRES_DB: moz
+      POSTGRES_USER: moz
+      POSTGRES_PASSWORD: moz_dev_2026
+    ports:
+      - "5433:5432"
+    volumes:
+      - moz_pgdata:/var/lib/postgresql/data
+      - ./database/migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U moz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ./backend
+    container_name: moz-api
+    ports:
+      - "8001:8000"
+    environment:
+      DATABASE_URL: postgresql://moz:moz_dev_2026@db:5432/moz
+      COUNTRY_DIR: /app/countries/mozambique
+    volumes:
+      - ./backend:/app
+      - ./countries:/app/countries
+    depends_on:
+      db:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  moz_pgdata:

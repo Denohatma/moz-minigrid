@@ -1,0 +1,7 @@
+{
+  "urban": 4,
+  "periurban_high": 4,
+  "periurban": 3,
+  "rural_connected": 2,
+  "rural_remote": 1
+}

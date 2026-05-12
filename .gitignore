@@ -1,0 +1,52 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+
+# Environment
+.env
+.env.local
+.env.production
+
+# Build
+.next/
+out/
+dist/
+build/
+
+# Data files (large GIS data)
+countries/*/rasters/*.tif
+countries/*/vectors/*.shp
+countries/*/vectors/*.dbf
+countries/*/vectors/*.shx
+countries/*/vectors/*.prj
+data_pipeline/downloads/
+
+# Large data files
+*.csv
+*.geojson
+*.pdf
+
+# Reference documents (keep in Drive/Notion, not git)
+*.docx
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test
+coverage/
+htmlcov/
+.pytest_cache/
+
+# Generated reports
+reports_output/

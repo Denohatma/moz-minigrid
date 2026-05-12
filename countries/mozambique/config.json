@@ -1,0 +1,22 @@
+{
+  "country": "Mozambique",
+  "country_code": "MOZ",
+  "currency": "MZN",
+  "currency_symbol": "MT",
+  "exchange_rate_usd": 63.5,
+  "population_year": 2024,
+  "population_growth_rate": 0.028,
+  "persons_per_hh_rural": 4.5,
+  "persons_per_hh_urban": 3.8,
+  "national_electrification_rate": 0.40,
+  "grid_tariff_usd_kwh": 0.12,
+  "regulator": "ARENE",
+  "utility": "EDM",
+  "edm_mandate_km": 30,
+  "bbox": {
+    "lat_min": -26.87,
+    "lat_max": -10.47,
+    "lon_min": 30.21,
+    "lon_max": 40.84
+  }
+}

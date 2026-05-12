@@ -1,0 +1,92 @@
+{
+  "project_lifetime_years": 25,
+  "discount_rate": 0.10,
+  "inflation_rate": 0.05,
+  "degradation_rate_per_year": 0.005,
+
+  "_cost_sources": {
+    "primary": "ESMAP Mini Grids for Half a Billion People (2022), AMDA Benchmark Report 2023, IRENA Renewable Power Generation Costs 2023, AfDB Desert to Power data",
+    "region": "Sub-Saharan Africa, East/Southern Africa corridor",
+    "currency_year": "2024 USD",
+    "notes": "SSA mini-grid installed costs are 2-4x higher than utility-scale due to logistics, small project scale, and distribution infrastructure. ESMAP 2022 reports median installed cost of $4,200/kW for solar-hybrid mini-grids in SSA. AMDA 2023 reports $3,800-5,500/kW for systems under 100kWp. Battery costs have declined ~15% since 2022 for LFP."
+  },
+
+  "capex_unit_costs": {
+    "pv_modules_usd_per_kwp": 580,
+    "inverters_usd_per_kwac": 420,
+    "mounting_usd_per_kwp": 180,
+    "bos_usd_per_kwp": 220,
+    "battery_ems_usd_per_kwh": 285,
+    "civil_works_fixed_usd": 18000,
+    "owners_cost_pct": 0.10,
+    "epc_margin_pct": 0.08,
+    "contingency_pct": 0.075,
+
+    "_pv_source": "IRENA 2023: utility-scale SSA $400-600/kWp; mini-grid adder 20-40% for logistics, small-lot. ESMAP 2022 median PV module cost for SSA mini-grids: $550-650/kWp installed",
+    "_battery_source": "BNEF 2024: LFP pack prices $130-145/kWh globally; SSA installed with EMS $250-350/kWh. AMDA 2023 benchmark: $280-380/kWh for <200kWh systems in East Africa",
+    "_inverter_source": "ESMAP 2022: hybrid inverter + charge controller $350-500/kWac for mini-grid scale. SMA/Victron pricing for SSA distributors",
+    "_distribution_source": "AMDA 2023: $300-800/connection for LV networks in SSA; ESMAP median $450/connection. Distribution costs are computed separately by the distribution engine",
+    "_civil_source": "ESMAP 2022: civil works $12,000-25,000 fixed for <100kWp rural SSA sites"
+  },
+
+  "distribution": {
+    "pole_cost_usd": 85,
+    "pole_span_m": 40,
+    "service_drop_cost_usd": 175,
+    "meter_cost_usd": 45,
+    "conductor_cost_abc35_per_km": 3800,
+    "conductor_cost_abc16_per_km": 2200,
+    "conductor_cost_service_per_km": 1400,
+    "protection_pct": 0.06,
+    "construction_labour_base_pct": 0.30,
+    "soft_cost_pct": 0.12,
+    "_source": "AMDA 2023 benchmark: LV distribution $350-800/connection. Conductor pricing from East Africa procurement 2023-2024. Pole costs reflect treated wood in Mozambique context"
+  },
+
+  "opex": {
+    "generation_om_pct_of_capex": 0.030,
+    "distribution_om_pct_of_capex": 0.015,
+    "site_security_usd_yr": 1500,
+    "remote_monitoring_usd_yr": 800,
+    "insurance_pct_of_capex": 0.005,
+    "_source": "ESMAP 2022: total OPEX 3-6% of CAPEX for SSA mini-grids. AMDA 2023: generation O&M 2.5-4% of gen CAPEX, distribution O&M 1-2% of dist CAPEX. Security costs higher in remote Mozambique locations"
+  },
+
+  "replacement_cycles": {
+    "battery_replacement_year": 10,
+    "battery_replacement_pct_of_original": 0.55,
+    "inverter_replacement_year": 12,
+    "inverter_replacement_pct_of_original": 0.35,
+    "_source": "ESMAP 2022: battery replacement at year 8-12 at 50-70% of original cost (declining costs offset by logistics). IRENA 2023: LFP cycle life supports 10-year replacement for mini-grid duty cycles"
+  },
+
+  "financing": {
+    "default_grant_pct": 0.40,
+    "default_debt_pct": 0.35,
+    "default_equity_pct": 0.25,
+    "concessional_debt_rate": 0.05,
+    "debt_tenor_years": 15,
+    "grace_period_years": 2,
+    "_source": "ESMAP 2022: typical SSA mini-grid financing 30-50% grant, 25-40% debt, 15-30% equity. AfDB Desert to Power: concessional debt 4-6%. World Bank ROGEP: grant-heavy structures for first-access sites"
+  },
+
+  "technical": {
+    "technical_losses_pct": 0.08,
+    "performance_ratio": 0.77,
+    "genset_efficiency": 0.33,
+    "diesel_energy_density_kwh_per_litre": 10.0
+  },
+
+  "connection_growth": {
+    "year1_connection_pct": 0.60,
+    "base_pct_yr": 0.05,
+    "_source": "AMDA 2023: year 1 connection rates 40-70% across SSA; growth 3-8%/year depending on tariff and service quality"
+  },
+
+  "tariff": {
+    "base_usd_kwh": 0.45,
+    "low_usd_kwh": 0.30,
+    "high_usd_kwh": 0.65,
+    "_source": "ESMAP 2022: cost-reflective mini-grid tariffs in SSA range $0.40-0.80/kWh. AMDA 2023: median realized tariff $0.45/kWh in East Africa. Mozambique ARENE framework allows cost-reflective pricing under Decree 93/2021"
+  }
+}

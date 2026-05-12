@@ -1,0 +1,10 @@
+{
+  "name": "Commercial / Peri-Urban",
+  "description": "Broader daytime consumption profile for peri-urban and commercial areas. ~55% daytime load.",
+  "profile": [
+    0.012, 0.010, 0.010, 0.010, 0.012, 0.020,
+    0.040, 0.060, 0.065, 0.065, 0.060, 0.055,
+    0.050, 0.050, 0.050, 0.050, 0.050, 0.055,
+    0.065, 0.070, 0.060, 0.045, 0.025, 0.012
+  ]
+}

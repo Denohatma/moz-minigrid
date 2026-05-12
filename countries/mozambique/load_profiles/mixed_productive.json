@@ -1,0 +1,10 @@
+{
+  "name": "Mixed Residential + Productive",
+  "description": "Dual-peak profile for settlements with productive use. Morning productive (08-12) + evening residential (17-21). ~40% daytime.",
+  "profile": [
+    0.010, 0.008, 0.008, 0.008, 0.010, 0.020,
+    0.035, 0.055, 0.065, 0.060, 0.055, 0.045,
+    0.040, 0.040, 0.035, 0.035, 0.040, 0.060,
+    0.085, 0.095, 0.080, 0.060, 0.035, 0.015
+  ]
+}
