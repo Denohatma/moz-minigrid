@@ -776,10 +776,12 @@ function ResultsPanel({
           : format === "pfs"
             ? `${result.site.name || "site"}-PFS.docx`
             : "moz-report.html";
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      // silent fail on download
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      console.error("Download failed:", e);
     } finally {
       setDownloading(null);
     }
