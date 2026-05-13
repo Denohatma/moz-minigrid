@@ -115,6 +115,7 @@ def lookup_cluster(lat: float, lon: float) -> Optional[ClusterInfo]:
     """Find the nearest DRE Atlas settlement to the given point.
 
     Priority: PostGIS → DRE Atlas CSV → synthetic fallback.
+    Raises ValueError if no settlement is found within 50 km.
     """
     validate_coordinates(lat, lon)
 
@@ -126,6 +127,14 @@ def lookup_cluster(lat: float, lon: float) -> Optional[ClusterInfo]:
     result = _lookup_dre_atlas(lat, lon)
     if result:
         return result
+
+    data = _load_dre_atlas()
+    if data.get("loaded"):
+        raise ValueError(
+            f"No settlement found within 50 km of ({lat:.4f}, {lon:.4f}). "
+            "The location may be in the ocean or an uninhabited area. "
+            "Please select a point closer to a known settlement."
+        )
 
     return _lookup_synthetic(lat, lon)
 

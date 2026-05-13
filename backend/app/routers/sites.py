@@ -11,7 +11,10 @@ def get_cluster(
     lat: float = Query(..., ge=-27, le=-10, description="Latitude"),
     lon: float = Query(..., ge=29, le=42, description="Longitude"),
 ):
-    cluster = lookup_cluster(lat, lon)
+    try:
+        cluster = lookup_cluster(lat, lon)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     if cluster is None:
         raise HTTPException(status_code=404, detail="No settlement cluster found near this location")
     return cluster
@@ -22,7 +25,10 @@ def get_suitability(
     lat: float = Query(..., ge=-27, le=-10),
     lon: float = Query(..., ge=29, le=42),
 ):
-    cluster = lookup_cluster(lat, lon)
+    try:
+        cluster = lookup_cluster(lat, lon)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     if cluster is None:
         raise HTTPException(status_code=404, detail="No settlement cluster found")
     return screen_suitability(cluster)
