@@ -3,6 +3,407 @@ from __future__ import annotations
 from app.schemas.analysis import AnalysisResult
 
 
+def _risk_badge(level: str) -> str:
+    """Return an inline risk-badge span for the given level string."""
+    norm = level.lower().replace(" ", "_")
+    css_class = "risk-low"
+    if norm in ("high", "very_high", "substantial"):
+        css_class = "risk-high"
+    elif norm in ("medium", "moderate", "peri-urban"):
+        css_class = "risk-medium"
+    elif norm in ("critical",):
+        css_class = "risk-critical"
+    return f'<span class="risk-badge {css_class}">{level.upper()}</span>'
+
+
+def _relevance_badge(relevance: str) -> str:
+    """Return a coloured badge for productive-use relevance."""
+    colors = {
+        "high": ("background:#c6f6d5;color:#22543d;", "HIGH"),
+        "medium": ("background:#fefcbf;color:#744210;", "MEDIUM"),
+        "low": ("background:#fed7d7;color:#822727;", "LOW"),
+        "none": ("background:#e2e8f0;color:#4a5568;", "NONE"),
+    }
+    style, label = colors.get(relevance.lower(), ("background:#e2e8f0;color:#4a5568;", relevance.upper()))
+    return f'<span style="display:inline-block;padding:2px 10px;border-radius:12px;font-weight:600;font-size:12px;{style}">{label}</span>'
+
+
+def _data_quality_badge(quality: str) -> str:
+    """Return a coloured badge for data quality."""
+    colors = {
+        "high": "background:#c6f6d5;color:#22543d;",
+        "medium": "background:#fefcbf;color:#744210;",
+        "low": "background:#fed7d7;color:#822727;",
+    }
+    style = colors.get(quality.lower(), "background:#e2e8f0;color:#4a5568;")
+    return f'<span style="display:inline-block;padding:2px 10px;border-radius:12px;font-weight:600;font-size:12px;{style}">{quality.upper()}</span>'
+
+
+def _hazard_level_color(level: str) -> str:
+    """Return an inline background-color style for a hazard level."""
+    mapping = {
+        "very_high": "background:#e53e3e;color:white;",
+        "high": "background:#ed8936;color:white;",
+        "moderate": "background:#ecc94b;color:#744210;",
+        "low": "background:#48bb78;color:white;",
+        "negligible": "background:#a0aec0;color:white;",
+    }
+    return mapping.get(level.lower(), "background:#e2e8f0;color:#4a5568;")
+
+
+def _score_bar(score: int, max_score: int = 100) -> str:
+    """Return an inline progress-bar showing a confidence score."""
+    pct = min(score / max_score * 100, 100) if max_score > 0 else 0
+    color = "#38a169" if pct >= 70 else "#ecc94b" if pct >= 40 else "#e53e3e"
+    return (
+        f'<div style="display:flex;align-items:center;gap:8px;">'
+        f'<div style="flex:1;background:#e2e8f0;border-radius:4px;height:12px;overflow:hidden;">'
+        f'<div style="width:{pct:.0f}%;height:100%;background:{color};border-radius:4px;"></div>'
+        f'</div>'
+        f'<span style="font-weight:600;font-size:12px;min-width:36px;">{score}</span></div>'
+    )
+
+
+def _build_productive_use_section(pu) -> str:
+    """Build the Productive Use Value Chain section HTML."""
+    html = '<div class="page-break"></div>\n<h2>Productive Use Value Chain</h2>\n'
+
+    # Sectors table
+    if pu.sectors:
+        rows = ""
+        for sec in pu.sectors:
+            activities = ", ".join(sec.indicative_activities) if sec.indicative_activities else "—"
+            rows += (
+                f"<tr><td>{sec.sector}</td>"
+                f"<td>{_relevance_badge(sec.relevance)}</td>"
+                f"<td style='font-size:11px;'>{sec.rationale}</td>"
+                f"<td style='font-size:11px;'>{activities}</td>"
+                f"<td style='text-align:right;'>{sec.estimated_demand_kwh_day:.1f}</td></tr>"
+            )
+        html += (
+            "<h3>Relevant Sectors</h3>\n"
+            "<table><thead><tr><th>Sector</th><th>Relevance</th><th>Rationale</th>"
+            "<th>Indicative Activities</th><th>Est. Demand (kWh/day)</th></tr></thead>\n"
+            f"<tbody>{rows}</tbody></table>\n"
+        )
+
+    # Summary metrics
+    html += (
+        '<div class="metrics">\n'
+        f'  <div class="metric"><div class="value">{pu.total_productive_demand_kwh_day:.1f}</div><div class="label">Productive Demand (kWh/day)</div></div>\n'
+        f'  <div class="metric"><div class="value">{pu.productive_demand_pct:.1f}%</div><div class="label">Productive Share of Total Demand</div></div>\n'
+        f'  <div class="metric"><div class="value">${pu.incremental_income_usd_year:,.0f}</div><div class="label">Incremental Income ($/yr)</div></div>\n'
+        '</div>\n'
+    )
+
+    # Anchor customers
+    if pu.anchors:
+        rows = ""
+        for a in pu.anchors:
+            rows += (
+                f"<tr><td>{a.type}</td><td>{a.name}</td>"
+                f"<td style='text-align:right;'>{a.estimated_demand_kwh_day:.1f}</td>"
+                f"<td style='text-align:right;'>{a.estimated_peak_kw:.1f}</td>"
+                f"<td>{_data_quality_badge(a.confidence)}</td>"
+                f"<td>{a.contract_type}</td></tr>"
+            )
+        html += (
+            "<h3>Anchor Customers</h3>\n"
+            "<table><thead><tr><th>Type</th><th>Name</th><th>Demand (kWh/day)</th>"
+            "<th>Peak (kW)</th><th>Confidence</th><th>Contract</th></tr></thead>\n"
+            f"<tbody>{rows}</tbody></table>\n"
+        )
+
+    # Equipment recommendations
+    if pu.equipment_recommendations:
+        rows = ""
+        for eq in pu.equipment_recommendations:
+            rows += (
+                f"<tr><td>{eq.sector}</td><td>{eq.equipment}</td>"
+                f"<td style='text-align:right;'>{eq.power_kw:.1f}</td>"
+                f"<td style='text-align:right;'>${eq.capex_usd_low:,.0f} – ${eq.capex_usd_high:,.0f}</td>"
+                f"<td>{eq.ownership_model}</td></tr>"
+            )
+        html += (
+            "<h3>Equipment Recommendations</h3>\n"
+            "<table><thead><tr><th>Sector</th><th>Equipment</th><th>Power (kW)</th>"
+            "<th>CAPEX Range (USD)</th><th>Ownership Model</th></tr></thead>\n"
+            f"<tbody>{rows}</tbody></table>\n"
+        )
+
+    # Complementary investment summary
+    ci = pu.complementary_investment_usd
+    if ci:
+        html += '<h3>Complementary Investment Required</h3>\n<div class="info-grid"><div>\n'
+        for key in ("equipment", "working_capital", "market_access", "training"):
+            if key in ci:
+                label = key.replace("_", " ").title()
+                html += f'<div class="info-row"><span class="info-label">{label}</span><span class="info-value">${ci[key]:,.0f}</span></div>\n'
+        html += '</div><div>\n'
+        if "total" in ci:
+            html += f'<div class="info-row"><span class="info-label">Total Complementary Investment</span><span class="info-value" style="color:#2f855a;font-size:16px;">${ci["total"]:,.0f}</span></div>\n'
+        html += '</div></div>\n'
+
+    # Jobs and income
+    jobs = pu.jobs
+    if jobs:
+        html += '<h3>Employment Impact</h3>\n<div class="metrics">\n'
+        if "direct" in jobs:
+            html += f'  <div class="metric"><div class="value">{jobs["direct"]}</div><div class="label">Direct Jobs</div></div>\n'
+        if "indirect" in jobs:
+            html += f'  <div class="metric"><div class="value">{jobs["indirect"]}</div><div class="label">Indirect Jobs</div></div>\n'
+        if "total" in jobs:
+            html += f'  <div class="metric"><div class="value">{jobs["total"]}</div><div class="label">Total Jobs</div></div>\n'
+        html += '</div>\n'
+
+    return html
+
+
+def _build_ess_section(ess) -> str:
+    """Build the Environmental & Social Safeguards section HTML."""
+    html = '<div class="page-break"></div>\n<h2>Environmental &amp; Social Safeguards</h2>\n'
+
+    # ESIA category as prominent badge
+    cat_colors = {
+        "A": "background:#e53e3e;color:white;",
+        "B+": "background:#ed8936;color:white;",
+        "B": "background:#ecc94b;color:#744210;",
+        "C": "background:#48bb78;color:white;",
+    }
+    cat_style = cat_colors.get(ess.esia_category, "background:#e2e8f0;color:#4a5568;")
+    html += (
+        f'<div style="margin:12px 0;padding:12px;background:#f7fafc;border:1px solid #e2e8f0;border-radius:8px;">'
+        f'<span style="font-size:11px;color:#718096;text-transform:uppercase;letter-spacing:0.5px;">ESIA Category</span> '
+        f'<span style="display:inline-block;padding:4px 16px;border-radius:12px;font-weight:700;font-size:18px;{cat_style}">{ess.esia_category}</span>'
+        f'<p style="margin:8px 0 0;font-size:12px;color:#4a5568;">{ess.esia_rationale}</p></div>\n'
+    )
+
+    # Key risk indicators
+    html += '<div class="info-grid"><div>\n'
+    html += f'<div class="info-row"><span class="info-label">Biodiversity Sensitivity</span><span class="info-value">{_risk_badge(ess.biodiversity_sensitivity)}</span></div>\n'
+    html += f'<div class="info-row"><span class="info-label">Resettlement Risk</span><span class="info-value">{_risk_badge(ess.resettlement_risk)}</span></div>\n'
+    html += f'<div class="info-row"><span class="info-label">Overall ESS Risk</span><span class="info-value">{_risk_badge(ess.overall_ess_risk)}</span></div>\n'
+    html += '</div><div>\n'
+
+    if ess.labour_safety_risks:
+        html += '<div class="info-row"><span class="info-label">Labour Safety Risks</span><span class="info-value" style="font-size:11px;">' + "; ".join(ess.labour_safety_risks) + '</span></div>\n'
+    if ess.community_safety_risks:
+        html += '<div class="info-row"><span class="info-label">Community Safety Risks</span><span class="info-value" style="font-size:11px;">' + "; ".join(ess.community_safety_risks) + '</span></div>\n'
+
+    html += '</div></div>\n'
+
+    # Protected area checks
+    if ess.protected_area_checks:
+        rows = ""
+        for pa in ess.protected_area_checks:
+            rows += (
+                f"<tr><td>{pa.area_name}</td>"
+                f"<td style='text-align:right;'>{pa.distance_km:.1f} km</td>"
+                f"<td>{'Yes' if pa.buffer_zone else 'No'}</td>"
+                f"<td>{_risk_badge(pa.sensitivity)}</td></tr>"
+            )
+        html += (
+            "<h3>Protected Area Proximity</h3>\n"
+            "<table><thead><tr><th>Protected Area</th><th>Distance</th><th>Buffer Zone</th>"
+            "<th>Sensitivity</th></tr></thead>\n"
+            f"<tbody>{rows}</tbody></table>\n"
+        )
+
+    # Stakeholder groups
+    if ess.stakeholder_groups:
+        html += '<h3>Stakeholder Groups</h3>\n<div style="margin:6px 0;">\n'
+        for sg in ess.stakeholder_groups:
+            html += f'<span style="display:inline-block;padding:3px 10px;margin:3px;background:#edf2f7;border-radius:12px;font-size:12px;">{sg}</span>\n'
+        html += '</div>\n'
+
+    # GESI considerations
+    if ess.gesi_considerations:
+        html += '<h3>Gender Equality &amp; Social Inclusion</h3>\n<ul style="font-size:12px;">\n'
+        for g in ess.gesi_considerations:
+            html += f'  <li>{g}</li>\n'
+        html += '</ul>\n'
+
+    # Women's empowerment
+    if ess.womens_empowerment_opportunities:
+        html += "<h3>Women's Empowerment Opportunities</h3>\n<ul style=\"font-size:12px;\">\n"
+        for w in ess.womens_empowerment_opportunities:
+            html += f'  <li>{w}</li>\n'
+        html += '</ul>\n'
+
+    # Recommended actions
+    if ess.recommended_actions:
+        html += '<h3>Recommended ESS Actions</h3>\n<ol style="font-size:12px;">\n'
+        for a in ess.recommended_actions:
+            html += f'  <li>{a}</li>\n'
+        html += '</ol>\n'
+
+    return html
+
+
+def _build_climate_section(climate) -> str:
+    """Build the Climate Rationale section HTML."""
+    html = '<div class="page-break"></div>\n<h2>Climate Rationale</h2>\n'
+
+    # Headline metrics
+    html += (
+        '<div class="metrics">\n'
+        f'  <div class="metric"><div class="value">{climate.lifetime_avoided_tco2e:,.0f}</div><div class="label">Lifetime Avoided tCO2e</div></div>\n'
+        f'  <div class="metric"><div class="value">{climate.per_capita_reduction_tco2e:.2f}</div><div class="label">Per Capita Reduction (tCO2e)</div></div>\n'
+        f'  <div class="metric"><div class="value">${climate.total_climate_finance_potential_usd:,.0f}</div><div class="label">Climate Finance Potential</div></div>\n'
+        '</div>\n'
+    )
+
+    # NDC alignment narrative
+    html += (
+        '<h3>NDC Alignment</h3>\n'
+        f'<div style="padding:8px 12px;background:#f7fafc;border-left:3px solid #2f855a;font-size:12px;margin:8px 0;">{climate.ndc_alignment}</div>\n'
+    )
+
+    # Adaptation narrative
+    html += (
+        '<h3>Adaptation Narrative</h3>\n'
+        f'<div style="padding:8px 12px;background:#f7fafc;border-left:3px solid #3182ce;font-size:12px;margin:8px 0;">{climate.adaptation_narrative}</div>\n'
+    )
+
+    # Hazard exposure table
+    if climate.hazards:
+        rows = ""
+        for h in climate.hazards:
+            lvl_style = _hazard_level_color(h.level)
+            rows += (
+                f"<tr><td>{h.hazard.replace('_', ' ').title()}</td>"
+                f'<td><span style="display:inline-block;padding:2px 10px;border-radius:12px;font-weight:600;font-size:12px;{lvl_style}">{h.level.replace("_", " ").upper()}</span></td>'
+                f"<td style='font-size:11px;'>{h.description}</td></tr>"
+            )
+        html += (
+            f"<h3>Climate Hazard Exposure</h3>\n"
+            f'<div class="info-row"><span class="info-label">Overall Hazard Level</span><span class="info-value">{_risk_badge(climate.overall_hazard_level)}</span></div>\n'
+            "<table><thead><tr><th>Hazard</th><th>Level</th><th>Description</th></tr></thead>\n"
+            f"<tbody>{rows}</tbody></table>\n"
+        )
+
+    # Design resilience measures
+    if climate.design_resilience_measures:
+        html += '<h3>Design Resilience Measures</h3>\n<ul style="font-size:12px;">\n'
+        for m in climate.design_resilience_measures:
+            html += f'  <li>{m}</li>\n'
+        html += '</ul>\n'
+
+    # Climate finance eligibility table
+    if climate.climate_finance:
+        rows = ""
+        for cf in climate.climate_finance:
+            eligible_icon = '<span style="color:#38a169;font-weight:700;">&#10003;</span>' if cf.eligible else '<span style="color:#e53e3e;font-weight:700;">&#10007;</span>'
+            rows += (
+                f"<tr><td>{cf.instrument}</td>"
+                f"<td style='text-align:center;'>{eligible_icon}</td>"
+                f"<td style='font-size:11px;'>{cf.rationale}</td>"
+                f"<td style='text-align:right;'>${cf.estimated_value_usd:,.0f}</td></tr>"
+            )
+        html += (
+            f'<h3>Climate Finance Eligibility</h3>\n'
+            f'<div class="info-row"><span class="info-label">Climate Finance Score</span><span class="info-value">{_risk_badge(climate.climate_finance_score)}</span></div>\n'
+            "<table><thead><tr><th>Instrument</th><th>Eligible</th><th>Rationale</th>"
+            "<th>Est. Value (USD)</th></tr></thead>\n"
+            f"<tbody>{rows}</tbody></table>\n"
+        )
+
+    return html
+
+
+def _build_risk_section(ra) -> str:
+    """Build the Comprehensive Risk Analysis section HTML."""
+    html = '<div class="page-break"></div>\n<h2>Comprehensive Risk Analysis</h2>\n'
+
+    # Overall risk level
+    html += (
+        f'<div style="margin:12px 0;padding:12px;background:#f7fafc;border:1px solid #e2e8f0;border-radius:8px;">'
+        f'<span style="font-size:11px;color:#718096;text-transform:uppercase;letter-spacing:0.5px;">Overall Risk Level</span> '
+        f'{_risk_badge(ra.overall_risk_level)}'
+        f'<span style="margin-left:16px;font-size:12px;color:#4a5568;">Score: {ra.overall_risk_score:.1f}</span></div>\n'
+    )
+
+    # Top risks callout
+    if ra.top_risks:
+        html += '<h3>Top Risks</h3>\n<ol style="font-size:12px;margin:4px 0;">\n'
+        for tr in ra.top_risks[:3]:
+            html += f'  <li style="margin-bottom:4px;">{tr}</li>\n'
+        html += '</ol>\n'
+
+    # Full risk matrix table
+    if ra.risks:
+        rows = ""
+        for ri in ra.risks:
+            mitigation_text = "; ".join(ri.mitigation) if ri.mitigation else "—"
+            rows += (
+                f"<tr><td>{ri.category.title()}</td>"
+                f"<td style='font-size:11px;'>{ri.sub_risk}</td>"
+                f"<td style='text-align:center;'>{ri.likelihood}</td>"
+                f"<td style='text-align:center;'>{ri.impact}</td>"
+                f"<td style='text-align:center;font-weight:600;'>{ri.risk_score}</td>"
+                f"<td>{_risk_badge(ri.risk_level)}</td>"
+                f"<td style='font-size:11px;'>{mitigation_text}</td>"
+                f"<td style='font-size:11px;'>{ri.allocation}</td></tr>"
+            )
+        html += (
+            "<h3>Risk Matrix</h3>\n"
+            "<table><thead><tr><th>Category</th><th>Sub-Risk</th><th>L</th><th>I</th>"
+            "<th>Score</th><th>Level</th><th>Mitigation</th><th>Allocation</th></tr></thead>\n"
+            f"<tbody>{rows}</tbody></table>\n"
+        )
+
+    # Risk allocation summary
+    ras = ra.risk_allocation_summary
+    if ras:
+        html += '<h3>Risk Allocation Summary</h3>\n<div class="info-grid"><div>\n'
+        for party, count in ras.items():
+            html += f'<div class="info-row"><span class="info-label">{party.title()}</span><span class="info-value">{count}</span></div>\n'
+        html += '</div><div></div></div>\n'
+
+    return html
+
+
+def _build_confidence_section(conf) -> str:
+    """Build the Confidence Scoring section HTML."""
+    html = '<div class="page-break"></div>\n<h2>Confidence Scoring</h2>\n'
+
+    # Overall confidence headline
+    html += (
+        '<div style="margin:12px 0;padding:12px;background:#f7fafc;border:1px solid #e2e8f0;border-radius:8px;">'
+        f'<span style="font-size:11px;color:#718096;text-transform:uppercase;letter-spacing:0.5px;">Overall Confidence</span> '
+        f'{_score_bar(conf.overall_confidence_score)}'
+        f'<div style="margin-top:6px;">'
+        f'{_risk_badge(conf.overall_confidence_level)}'
+        f'<span style="margin-left:16px;font-size:12px;color:#4a5568;">Data Completeness: {conf.data_completeness_pct:.0f}%</span></div></div>\n'
+    )
+
+    # Dimensions table
+    if conf.dimensions:
+        rows = ""
+        for dim in conf.dimensions:
+            rows += (
+                f"<tr><td>{dim.dimension}</td>"
+                f"<td style='min-width:160px;'>{_score_bar(dim.confidence_score)}</td>"
+                f"<td style='text-align:right;'>&plusmn;{dim.margin_of_error_pct:.1f}%</td>"
+                f"<td>{_data_quality_badge(dim.data_quality)}</td></tr>"
+            )
+        html += (
+            "<h3>Confidence Dimensions</h3>\n"
+            "<table><thead><tr><th>Dimension</th><th>Score</th><th>Margin of Error</th>"
+            "<th>Data Quality</th></tr></thead>\n"
+            f"<tbody>{rows}</tbody></table>\n"
+        )
+
+    # Recommendations
+    if conf.recommendations:
+        html += '<h3>Recommendations to Improve Confidence</h3>\n<ol style="font-size:12px;">\n'
+        for rec in conf.recommendations:
+            html += f'  <li>{rec}</li>\n'
+        html += '</ol>\n'
+
+    return html
+
+
 def generate_html_report(result: AnalysisResult) -> str:
     """Generate an HTML prefeasibility report that can be printed to PDF."""
     r = result
@@ -41,6 +442,13 @@ def generate_html_report(result: AnalysisResult) -> str:
         <h3>Grid Arrival Scenarios</h3>
         <table><thead><tr><th>Scenario</th><th>Adjusted IRR</th><th>Adjusted NPV</th><th>Investment Recovered</th></tr></thead>
         <tbody>{rows}</tbody></table>"""
+
+    # Build optional TOR-required sections
+    productive_use_html = _build_productive_use_section(r.productive_use) if r.productive_use else ""
+    ess_html = _build_ess_section(r.ess) if r.ess else ""
+    climate_html = _build_climate_section(r.climate) if r.climate else ""
+    risk_analysis_html = _build_risk_section(r.risk_analysis) if r.risk_analysis else ""
+    confidence_html = _build_confidence_section(r.confidence) if r.confidence else ""
 
     sensitivity_rows = ""
     for sv in f.sensitivity:
@@ -260,6 +668,16 @@ def generate_html_report(result: AnalysisResult) -> str:
 {f'<div class="info-row"><span class="info-label">ESMAP Strategy</span><span class="info-value">{gr.esmap_recommended}</span></div>' if gr.esmap_recommended else ''}
 {f'<div class="info-row"><span class="info-label">Design Implications</span><span class="info-value">{gr.design_implications}</span></div>' if gr.design_implications else ''}
 {scenarios_html}
+
+{productive_use_html}
+
+{ess_html}
+
+{climate_html}
+
+{risk_analysis_html}
+
+{confidence_html}
 
 <div class="page-break"></div>
 

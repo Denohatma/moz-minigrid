@@ -8,6 +8,7 @@ from app.services.analysis_service import run_full_analysis
 from app.engines.excel_engine import generate_excel
 from app.engines.report_engine import generate_html_report
 from app.engines.pfs_engine import generate_pfs_docx
+from app.engines.concession_engine import generate_concession_json
 
 router = APIRouter()
 
@@ -71,4 +72,29 @@ def generate_excel_report(request: AnalysisRequest):
         content=xlsx_bytes,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="moz-model-{result.cluster.id}.xlsx"'},
+    )
+
+
+@router.post("/concession")
+def generate_concession_report(request: AnalysisRequest):
+    try:
+        result = run_full_analysis(
+            latitude=request.latitude,
+            longitude=request.longitude,
+            name=request.name,
+            overrides=request.overrides,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    if result.concession is None:
+        raise HTTPException(status_code=500, detail="Concession data sheet generation failed")
+
+    import json
+    content = json.dumps(generate_concession_json(result.concession), indent=2, ensure_ascii=False)
+    site_name = result.cluster.village_name or "site"
+    return Response(
+        content=content,
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{site_name}-ARENE-concession.json"'},
     )

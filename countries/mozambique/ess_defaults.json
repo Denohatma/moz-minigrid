@@ -1,0 +1,40 @@
+{
+  "esia_thresholds": {
+    "category_c_max_kw": 100,
+    "category_b_max_kw": 500,
+    "category_b_plus_max_kw": 5000
+  },
+  "protected_areas": [
+    {"name": "Gorongosa National Park", "lat": -18.97, "lon": 34.35, "radius_km": 50, "type": "national_park"},
+    {"name": "Niassa Special Reserve", "lat": -12.50, "lon": 37.50, "radius_km": 80, "type": "reserve"},
+    {"name": "Bazaruto Archipelago NP", "lat": -21.65, "lon": 35.47, "radius_km": 30, "type": "marine_park"},
+    {"name": "Limpopo National Park", "lat": -23.00, "lon": 31.50, "radius_km": 40, "type": "national_park"},
+    {"name": "Quirimbas National Park", "lat": -12.30, "lon": 40.50, "radius_km": 40, "type": "national_park"},
+    {"name": "Marromeu Reserve", "lat": -18.50, "lon": 35.50, "radius_km": 30, "type": "reserve"},
+    {"name": "Chimanimani TFCA", "lat": -19.72, "lon": 33.47, "radius_km": 20, "type": "tfca"},
+    {"name": "Gilé National Reserve", "lat": -16.00, "lon": 38.00, "radius_km": 25, "type": "reserve"},
+    {"name": "Maputo Special Reserve", "lat": -26.40, "lon": 32.80, "radius_km": 20, "type": "reserve"}
+  ],
+  "resettlement": {
+    "land_per_kwp_ha": 0.01,
+    "population_density_high_threshold": 500,
+    "buffer_zone_m": 100
+  },
+  "stakeholder_groups": [
+    "Community leaders (régulo, community council)",
+    "District government (SDAE, SDPI)",
+    "Provincial government (DPREME)",
+    "ARENE (regulator)",
+    "EDM (national utility)",
+    "FUNAE (rural energy agency)",
+    "Local NGOs and CSOs",
+    "Women's groups and associations",
+    "Religious and traditional leaders",
+    "Youth associations"
+  ],
+  "gesi": {
+    "focus_sectors": ["post-harvest processing", "small retail", "tailoring", "food preparation"],
+    "barriers": ["access to equipment finance", "time poverty", "mobility constraints", "land tenure"],
+    "opportunities": ["women-led productive use cooperatives", "female technician training", "gender-responsive tariff design"]
+  }
+}

@@ -1,0 +1,156 @@
+{
+  "sectors": [
+    {
+      "id": "cereal_tuber_processing",
+      "name": "Cereal & Tuber Processing",
+      "activities": ["Maize milling", "Cassava grating", "Hammer mills", "Dehullers", "Flour packaging", "Drying"],
+      "provinces": ["all"],
+      "equipment": [
+        {"type": "Maize mill (hammer)", "power_kw": 7.5, "capex_usd_low": 2500, "capex_usd_high": 5000},
+        {"type": "Cassava grater (motorized)", "power_kw": 3.0, "capex_usd_low": 1200, "capex_usd_high": 2500},
+        {"type": "Dehuller", "power_kw": 5.0, "capex_usd_low": 2000, "capex_usd_high": 4000},
+        {"type": "Flour packaging machine", "power_kw": 1.5, "capex_usd_low": 800, "capex_usd_high": 1500}
+      ],
+      "demand_kwh_per_unit_day": 15,
+      "seasonal_pattern": "post-harvest peak (Apr-Aug)",
+      "jobs_per_unit": 3
+    },
+    {
+      "id": "oilseed_cashew",
+      "name": "Oilseed & Cashew Processing",
+      "activities": ["Cashew shelling", "Cashew cooking/peeling", "Grading", "Sesame handling", "Pigeon-pea processing", "Sunflower oil expression"],
+      "provinces": ["Nampula", "Zambezia", "Manica", "Tete"],
+      "equipment": [
+        {"type": "Cashew sheller (semi-auto)", "power_kw": 3.0, "capex_usd_low": 3000, "capex_usd_high": 6000},
+        {"type": "Oil press (expeller)", "power_kw": 5.5, "capex_usd_low": 2500, "capex_usd_high": 5000},
+        {"type": "Cashew peeling machine", "power_kw": 2.0, "capex_usd_low": 1500, "capex_usd_high": 3000}
+      ],
+      "demand_kwh_per_unit_day": 12,
+      "seasonal_pattern": "seasonal (Oct-Jan cashew, Mar-Jun sesame)",
+      "jobs_per_unit": 8
+    },
+    {
+      "id": "horticulture_irrigation",
+      "name": "Horticulture & Irrigation",
+      "activities": ["Solar pumping", "Drip irrigation", "Post-harvest handling", "Packing house operations"],
+      "provinces": ["Manica", "Zambezia", "Tete"],
+      "equipment": [
+        {"type": "Solar irrigation pump (submersible)", "power_kw": 1.5, "capex_usd_low": 1500, "capex_usd_high": 3500},
+        {"type": "Drip irrigation kit (0.5 ha)", "power_kw": 0.75, "capex_usd_low": 800, "capex_usd_high": 1500},
+        {"type": "Cold room (walk-in)", "power_kw": 5.0, "capex_usd_low": 8000, "capex_usd_high": 15000}
+      ],
+      "demand_kwh_per_unit_day": 8,
+      "seasonal_pattern": "dry season peak (May-Oct)",
+      "jobs_per_unit": 5
+    },
+    {
+      "id": "fisheries_aquaculture",
+      "name": "Fisheries & Aquaculture",
+      "activities": ["Ice production", "Cold storage", "Fish drying", "Freezer rooms", "Landing site lighting"],
+      "provinces": ["Cabo Delgado", "Nampula", "Zambezia"],
+      "equipment": [
+        {"type": "Ice maker (flake)", "power_kw": 5.0, "capex_usd_low": 5000, "capex_usd_high": 12000},
+        {"type": "Solar fish dryer", "power_kw": 2.0, "capex_usd_low": 1500, "capex_usd_high": 3000},
+        {"type": "Chest freezer (300L)", "power_kw": 0.15, "capex_usd_low": 400, "capex_usd_high": 800}
+      ],
+      "demand_kwh_per_unit_day": 20,
+      "seasonal_pattern": "year-round with monsoon dip",
+      "jobs_per_unit": 6
+    },
+    {
+      "id": "livestock_dairy",
+      "name": "Livestock & Dairy",
+      "activities": ["Milk cooling", "Feed processing", "Hatcheries", "Slaughter slabs", "Veterinary cold chain"],
+      "provinces": ["Manica", "Tete", "Nampula", "Zambezia"],
+      "equipment": [
+        {"type": "Milk cooling tank (200L)", "power_kw": 0.5, "capex_usd_low": 2500, "capex_usd_high": 5000},
+        {"type": "Feed mill (small)", "power_kw": 7.5, "capex_usd_low": 3000, "capex_usd_high": 6000},
+        {"type": "Vaccine refrigerator", "power_kw": 0.1, "capex_usd_low": 1500, "capex_usd_high": 3000}
+      ],
+      "demand_kwh_per_unit_day": 10,
+      "seasonal_pattern": "year-round",
+      "jobs_per_unit": 4
+    },
+    {
+      "id": "cold_chain",
+      "name": "Cold Chain (Vaccines, Perishables)",
+      "activities": ["Vaccine fridges", "Agricultural cold storage", "Mortuary cold rooms"],
+      "provinces": ["all"],
+      "equipment": [
+        {"type": "Solar vaccine refrigerator", "power_kw": 0.1, "capex_usd_low": 2000, "capex_usd_high": 4000},
+        {"type": "Walk-in cold room (10m³)", "power_kw": 3.0, "capex_usd_low": 10000, "capex_usd_high": 20000}
+      ],
+      "demand_kwh_per_unit_day": 5,
+      "seasonal_pattern": "year-round",
+      "jobs_per_unit": 1
+    },
+    {
+      "id": "mining_services",
+      "name": "Artisanal & Small-Scale Mining Services",
+      "activities": ["Welding workshops", "Equipment repair", "Sample preparation", "Domestic services"],
+      "provinces": ["Manica", "Tete", "Cabo Delgado", "Zambezia"],
+      "equipment": [
+        {"type": "Arc welder", "power_kw": 5.0, "capex_usd_low": 500, "capex_usd_high": 1500},
+        {"type": "Grinding/cutting tools", "power_kw": 2.5, "capex_usd_low": 300, "capex_usd_high": 800}
+      ],
+      "demand_kwh_per_unit_day": 10,
+      "seasonal_pattern": "year-round",
+      "jobs_per_unit": 4
+    },
+    {
+      "id": "light_manufacturing",
+      "name": "Light Manufacturing & Trades",
+      "activities": ["Welding", "Carpentry", "Tailoring", "Metal fabrication", "Mechanical workshops"],
+      "provinces": ["all"],
+      "equipment": [
+        {"type": "Welding machine", "power_kw": 5.0, "capex_usd_low": 500, "capex_usd_high": 1500},
+        {"type": "Power saw (table)", "power_kw": 2.5, "capex_usd_low": 400, "capex_usd_high": 1000},
+        {"type": "Sewing machine (industrial)", "power_kw": 0.5, "capex_usd_low": 300, "capex_usd_high": 700}
+      ],
+      "demand_kwh_per_unit_day": 8,
+      "seasonal_pattern": "year-round",
+      "jobs_per_unit": 2
+    },
+    {
+      "id": "ict_digital",
+      "name": "ICT & Digital Services",
+      "activities": ["Phone charging hubs", "Agent banking", "Telecom tower colocation"],
+      "provinces": ["all"],
+      "equipment": [
+        {"type": "Phone charging station (20-port)", "power_kw": 0.5, "capex_usd_low": 200, "capex_usd_high": 500},
+        {"type": "Agent banking terminal", "power_kw": 0.1, "capex_usd_low": 150, "capex_usd_high": 400}
+      ],
+      "demand_kwh_per_unit_day": 3,
+      "seasonal_pattern": "year-round",
+      "jobs_per_unit": 1
+    },
+    {
+      "id": "tourism_hospitality",
+      "name": "Tourism & Hospitality",
+      "activities": ["Lodges", "Restaurants", "Eco-tourism camps", "Cultural sites"],
+      "provinces": ["Manica", "Nampula", "Zambezia"],
+      "equipment": [
+        {"type": "Guest house lighting + fans (10 rooms)", "power_kw": 3.0, "capex_usd_low": 2000, "capex_usd_high": 5000},
+        {"type": "Commercial kitchen equipment", "power_kw": 5.0, "capex_usd_low": 3000, "capex_usd_high": 8000}
+      ],
+      "demand_kwh_per_unit_day": 15,
+      "seasonal_pattern": "seasonal (Jun-Oct peak tourism)",
+      "jobs_per_unit": 5
+    },
+    {
+      "id": "public_services",
+      "name": "Public Services as Anchors",
+      "activities": ["School lighting", "Health centre equipment", "Water pumping stations", "Public lighting", "Administrative posts"],
+      "provinces": ["all"],
+      "equipment": [
+        {"type": "School lighting system", "power_kw": 1.0, "capex_usd_low": 500, "capex_usd_high": 1500},
+        {"type": "Health centre power system", "power_kw": 3.0, "capex_usd_low": 2000, "capex_usd_high": 5000},
+        {"type": "Borehole pump", "power_kw": 2.0, "capex_usd_low": 3000, "capex_usd_high": 7000},
+        {"type": "Street lighting (10 poles)", "power_kw": 0.5, "capex_usd_low": 3000, "capex_usd_high": 6000}
+      ],
+      "demand_kwh_per_unit_day": 10,
+      "seasonal_pattern": "year-round",
+      "jobs_per_unit": 2
+    }
+  ]
+}

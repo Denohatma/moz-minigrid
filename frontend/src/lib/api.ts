@@ -248,6 +248,180 @@ export interface SuitabilityScreening {
   warnings: { type: string; message: string; severity: "info" | "warning" | "error" }[];
 }
 
+// ── Productive Use ──────────────────────────────────────────────
+
+export interface ProductiveUseSector {
+  sector: string;
+  relevance: "high" | "medium" | "low" | "none";
+  rationale: string;
+  indicative_activities: string[];
+  estimated_demand_kwh_day: number;
+  seasonal_pattern: string;
+}
+
+export interface AnchorCustomer {
+  type: string;
+  name: string;
+  estimated_demand_kwh_day: number;
+  estimated_peak_kw: number;
+  confidence: "high" | "medium" | "low";
+  contract_type: string;
+}
+
+export interface ProductiveUseEquipment {
+  sector: string;
+  equipment: string;
+  power_kw: number;
+  capex_usd_low: number;
+  capex_usd_high: number;
+  ownership_model: string;
+}
+
+export interface ProductiveUseAssessment {
+  sectors: ProductiveUseSector[];
+  anchors: AnchorCustomer[];
+  total_productive_demand_kwh_day: number;
+  productive_demand_pct: number;
+  demand_projections: Record<string, number>;
+  equipment_recommendations: ProductiveUseEquipment[];
+  complementary_investment_usd: Record<string, number>;
+  jobs: Record<string, number>;
+  incremental_income_usd_year: number;
+  demand_stimulation: Record<string, unknown>;
+  warnings: string[];
+}
+
+// ── ESS Screening ───────────────────────────────────────────────
+
+export interface ProtectedAreaCheck {
+  area_name: string;
+  distance_km: number;
+  buffer_zone: boolean;
+  sensitivity: string;
+}
+
+export interface ESSScreening {
+  esia_category: string;
+  esia_rationale: string;
+  esia_requirements: string[];
+  biodiversity_sensitivity: string;
+  protected_area_checks: ProtectedAreaCheck[];
+  biodiversity_notes: string;
+  resettlement_risk: string;
+  physical_displacement_risk: string;
+  economic_displacement_risk: string;
+  resettlement_notes: string;
+  estimated_land_requirement_ha: number;
+  labour_safety_risks: string[];
+  community_safety_risks: string[];
+  stakeholder_groups: string[];
+  consultation_requirements: string[];
+  grievance_mechanism: Record<string, unknown>;
+  gesi_considerations: string[];
+  womens_empowerment_opportunities: string[];
+  inclusion_measures: string[];
+  overall_ess_risk: string;
+  recommended_actions: string[];
+  warnings: string[];
+}
+
+// ── Climate Rationale ───────────────────────────────────────────
+
+export interface ClimateHazard {
+  hazard: string;
+  level: string;
+  description: string;
+  design_measures: string[];
+}
+
+export interface ClimateFinanceEligibility {
+  instrument: string;
+  eligible: boolean;
+  rationale: string;
+  estimated_value_usd: number;
+}
+
+export interface ClimateRationale {
+  lifetime_avoided_tco2e: number;
+  per_capita_reduction_tco2e: number;
+  ndc_alignment: string;
+  adaptation_narrative: string;
+  climate_resilient_livelihoods: string[];
+  water_security_contribution: string;
+  food_security_contribution: string;
+  energy_access_adaptation: string;
+  hazards: ClimateHazard[];
+  overall_hazard_level: string;
+  design_resilience_measures: string[];
+  climate_finance: ClimateFinanceEligibility[];
+  climate_finance_score: string;
+  total_climate_finance_potential_usd: number;
+  warnings: string[];
+}
+
+// ── Risk Analysis ───────────────────────────────────────────────
+
+export interface RiskItem {
+  category: string;
+  sub_risk: string;
+  likelihood: number;
+  impact: number;
+  risk_score: number;
+  risk_level: string;
+  description: string;
+  mitigation: string[];
+  allocation: string;
+}
+
+export interface RiskAnalysis {
+  risks: RiskItem[];
+  overall_risk_score: number;
+  overall_risk_level: string;
+  top_risks: string[];
+  risk_allocation_summary: Record<string, string[]>;
+  mitigation_investment_usd: number;
+  warnings: string[];
+}
+
+// ── Confidence Scoring ──────────────────────────────────────────
+
+export interface ConfidenceDimension {
+  dimension: string;
+  confidence_score: number;
+  margin_of_error_pct: number;
+  data_quality: string;
+  key_assumptions: string[];
+  calibration_status: string;
+}
+
+export interface ConfidenceAssessment {
+  dimensions: ConfidenceDimension[];
+  overall_confidence_score: number;
+  overall_confidence_level: string;
+  data_completeness_pct: number;
+  recommendations: string[];
+  warnings: string[];
+}
+
+// ── Concession Data Sheet ───────────────────────────────────────
+
+export interface ConcessionSection {
+  section_number: number;
+  title: string;
+  data: Record<string, unknown>;
+}
+
+export interface ConcessionDataSheet {
+  site_name: string;
+  province: string;
+  district: string;
+  generation_date: string;
+  sections: ConcessionSection[];
+  warnings: string[];
+}
+
+// ── Analysis Result ─────────────────────────────────────────────
+
 export interface AnalysisResult {
   site: SiteCoordinates;
   cluster: ClusterInfo;
@@ -259,6 +433,12 @@ export interface AnalysisResult {
   solar_resource?: SolarResource;
   distribution?: DistributionDesign;
   carbon?: CarbonAssessment;
+  climate?: ClimateRationale;
+  productive_use?: ProductiveUseAssessment;
+  ess?: ESSScreening;
+  risk_analysis?: RiskAnalysis;
+  confidence?: ConfidenceAssessment;
+  concession?: ConcessionDataSheet;
 }
 
 export async function analyzeSite(
@@ -293,7 +473,7 @@ export async function lookupCluster(
 
 export async function downloadReport(
   coords: SiteCoordinates,
-  format: "pdf" | "excel" | "pfs",
+  format: "pdf" | "excel" | "pfs" | "concession",
   overrides?: Record<string, unknown>
 ): Promise<Blob> {
   const res = await fetch(`${API_BASE}/api/reports/${format}`, {

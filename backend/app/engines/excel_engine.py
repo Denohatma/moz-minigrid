@@ -32,6 +32,18 @@ def generate_excel(result: AnalysisResult) -> bytes:
     _build_sensitivity_sheet(wb, result)
     _build_carbon_sheet(wb, result)
 
+    # TOR-required analysis sheets (only created when data is present)
+    if result.productive_use is not None:
+        _build_productive_use_sheet(wb, result)
+    if result.ess is not None:
+        _build_ess_sheet(wb, result)
+    if result.climate is not None:
+        _build_climate_sheet(wb, result)
+    if result.risk_analysis is not None:
+        _build_risk_register_sheet(wb, result)
+    if result.confidence is not None:
+        _build_confidence_sheet(wb, result)
+
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
@@ -532,6 +544,535 @@ def _build_carbon_sheet(wb: Workbook, r: AnalysisResult):
 
     if ca.warnings:
         row += 2
+        ws.cell(row=row, column=1, value="WARNINGS").font = SECTION_FONT
+        row += 1
+        for w in ca.warnings:
+            ws.cell(row=row, column=1, value=w).border = THIN_BORDER
+            row += 1
+
+
+# ── Productive Use Sheet ───────────────────────────────────────────
+
+def _build_productive_use_sheet(wb: Workbook, r: AnalysisResult):
+    ws = wb.create_sheet("Productive Use")
+    pu = r.productive_use
+
+    # Column widths
+    for col, width in [("A", 22), ("B", 22), ("C", 30), ("D", 18), ("E", 18), ("F", 20)]:
+        ws.column_dimensions[col].width = width
+
+    row = 1
+
+    # ── Relevant Sectors ──
+    ws.cell(row=row, column=1, value="RELEVANT SECTORS").font = SECTION_FONT
+    row += 1
+    sector_headers = ["Sector", "Relevance", "Activities", "Est. Demand kWh/day", "Seasonal Pattern"]
+    for c, h in enumerate(sector_headers, 1):
+        ws.cell(row=row, column=c, value=h)
+    _style_header_row(ws, row, len(sector_headers))
+    row += 1
+
+    for s in pu.sectors:
+        ws.cell(row=row, column=1, value=s.sector).border = THIN_BORDER
+        ws.cell(row=row, column=2, value=s.relevance.title()).border = THIN_BORDER
+        ws.cell(row=row, column=3, value=", ".join(s.indicative_activities) if s.indicative_activities else "—").border = THIN_BORDER
+        cell = ws.cell(row=row, column=4, value=round(s.estimated_demand_kwh_day, 1))
+        cell.number_format = USD_DEC_FMT
+        cell.border = THIN_BORDER
+        ws.cell(row=row, column=5, value=s.seasonal_pattern).border = THIN_BORDER
+        row += 1
+
+    # ── Anchor Customers ──
+    row += 1
+    ws.cell(row=row, column=1, value="ANCHOR CUSTOMERS").font = SECTION_FONT
+    row += 1
+    anchor_headers = ["Type", "Name", "Demand kWh/day", "Peak kW", "Confidence", "Contract Type"]
+    for c, h in enumerate(anchor_headers, 1):
+        ws.cell(row=row, column=c, value=h)
+    _style_header_row(ws, row, len(anchor_headers))
+    row += 1
+
+    for a in pu.anchors:
+        ws.cell(row=row, column=1, value=a.type).border = THIN_BORDER
+        ws.cell(row=row, column=2, value=a.name).border = THIN_BORDER
+        cell = ws.cell(row=row, column=3, value=round(a.estimated_demand_kwh_day, 1))
+        cell.number_format = USD_DEC_FMT
+        cell.border = THIN_BORDER
+        cell = ws.cell(row=row, column=4, value=round(a.estimated_peak_kw, 2))
+        cell.number_format = USD_DEC_FMT
+        cell.border = THIN_BORDER
+        ws.cell(row=row, column=5, value=a.confidence.title()).border = THIN_BORDER
+        ws.cell(row=row, column=6, value=a.contract_type).border = THIN_BORDER
+        row += 1
+
+    # ── Equipment Recommendations ──
+    row += 1
+    ws.cell(row=row, column=1, value="EQUIPMENT RECOMMENDATIONS").font = SECTION_FONT
+    row += 1
+    equip_headers = ["Sector", "Equipment", "Power kW", "CAPEX Low USD", "CAPEX High USD", "Ownership Model"]
+    for c, h in enumerate(equip_headers, 1):
+        ws.cell(row=row, column=c, value=h)
+    _style_header_row(ws, row, len(equip_headers))
+    row += 1
+
+    for eq in pu.equipment_recommendations:
+        ws.cell(row=row, column=1, value=eq.sector).border = THIN_BORDER
+        ws.cell(row=row, column=2, value=eq.equipment).border = THIN_BORDER
+        cell = ws.cell(row=row, column=3, value=round(eq.power_kw, 2))
+        cell.number_format = USD_DEC_FMT
+        cell.border = THIN_BORDER
+        cell = ws.cell(row=row, column=4, value=round(eq.capex_usd_low, 0))
+        cell.number_format = USD_FMT
+        cell.border = THIN_BORDER
+        cell = ws.cell(row=row, column=5, value=round(eq.capex_usd_high, 0))
+        cell.number_format = USD_FMT
+        cell.border = THIN_BORDER
+        ws.cell(row=row, column=6, value=eq.ownership_model).border = THIN_BORDER
+        row += 1
+
+    # ── Complementary Investment ──
+    row += 1
+    ws.cell(row=row, column=1, value="COMPLEMENTARY INVESTMENT").font = SECTION_FONT
+    row += 1
+    comp = pu.complementary_investment_usd
+    comp_items = [
+        ("Equipment", comp.get("equipment", 0)),
+        ("Working Capital", comp.get("working_capital", 0)),
+        ("Market Access", comp.get("market_access", 0)),
+        ("Training", comp.get("training", 0)),
+    ]
+    total_comp = sum(v for _, v in comp_items)
+    comp_items.append(("Total", total_comp))
+    for label, val in comp_items:
+        ws.cell(row=row, column=1, value=label).border = THIN_BORDER
+        cell = ws.cell(row=row, column=2, value=round(val, 0))
+        cell.number_format = USD_FMT
+        cell.border = THIN_BORDER
+        if label == "Total":
+            ws.cell(row=row, column=1).font = Font(bold=True)
+            cell.font = Font(bold=True)
+        row += 1
+
+    # ── Jobs & Income ──
+    row += 1
+    ws.cell(row=row, column=1, value="JOBS & INCOME").font = SECTION_FONT
+    row += 1
+    jobs = pu.jobs
+    direct = jobs.get("direct", 0)
+    indirect = jobs.get("indirect", 0)
+    total_jobs = jobs.get("total", direct + indirect)
+    jobs_data = [
+        ("Direct Jobs", direct),
+        ("Indirect Jobs", indirect),
+        ("Total Jobs", total_jobs),
+        ("Incremental Income (USD/year)", round(pu.incremental_income_usd_year, 0)),
+    ]
+    for label, val in jobs_data:
+        ws.cell(row=row, column=1, value=label).border = THIN_BORDER
+        cell = ws.cell(row=row, column=2, value=val)
+        cell.border = THIN_BORDER
+        if "USD" in label:
+            cell.number_format = USD_FMT
+        if label == "Total Jobs":
+            ws.cell(row=row, column=1).font = Font(bold=True)
+            cell.font = Font(bold=True)
+        row += 1
+
+    if pu.warnings:
+        row += 1
+        ws.cell(row=row, column=1, value="WARNINGS").font = SECTION_FONT
+        row += 1
+        for w in pu.warnings:
+            ws.cell(row=row, column=1, value=w).border = THIN_BORDER
+            row += 1
+
+
+# ── ESS Sheet ──────────────────────────────────────────────────────
+
+def _build_ess_sheet(wb: Workbook, r: AnalysisResult):
+    ws = wb.create_sheet("ESS")
+    ess = r.ess
+
+    for col, width in [("A", 30), ("B", 40), ("C", 16)]:
+        ws.column_dimensions[col].width = width
+
+    row = 1
+    ws.cell(row=row, column=1, value="ENVIRONMENTAL & SOCIAL SCREENING").font = SECTION_FONT
+    row += 2
+
+    # ── ESIA Category ──
+    ws.cell(row=row, column=1, value="ESIA CATEGORY").font = SECTION_FONT
+    row += 1
+    ws.cell(row=row, column=1, value="Category").border = THIN_BORDER
+    ws.cell(row=row, column=2, value=ess.esia_category).border = THIN_BORDER
+    row += 1
+    ws.cell(row=row, column=1, value="Rationale").border = THIN_BORDER
+    ws.cell(row=row, column=2, value=ess.esia_rationale).border = THIN_BORDER
+    row += 1
+
+    if ess.esia_requirements:
+        ws.cell(row=row, column=1, value="Requirements").font = Font(bold=True)
+        row += 1
+        for req in ess.esia_requirements:
+            ws.cell(row=row, column=1, value=req).border = THIN_BORDER
+            row += 1
+
+    # ── Biodiversity ──
+    row += 1
+    ws.cell(row=row, column=1, value="BIODIVERSITY SCREENING").font = SECTION_FONT
+    row += 1
+    ws.cell(row=row, column=1, value="Sensitivity").border = THIN_BORDER
+    ws.cell(row=row, column=2, value=ess.biodiversity_sensitivity).border = THIN_BORDER
+    row += 1
+    if ess.biodiversity_notes:
+        ws.cell(row=row, column=1, value="Notes").border = THIN_BORDER
+        ws.cell(row=row, column=2, value=ess.biodiversity_notes).border = THIN_BORDER
+        row += 1
+
+    if ess.protected_area_checks:
+        row += 1
+        pa_headers = ["Protected Area", "Distance km", "Buffer Zone", "Sensitivity"]
+        for c, h in enumerate(pa_headers, 1):
+            ws.cell(row=row, column=c, value=h)
+        _style_header_row(ws, row, len(pa_headers))
+        ws.column_dimensions["D"].width = 16
+        row += 1
+        for pa in ess.protected_area_checks:
+            ws.cell(row=row, column=1, value=pa.area_name).border = THIN_BORDER
+            cell = ws.cell(row=row, column=2, value=round(pa.distance_km, 1))
+            cell.number_format = USD_DEC_FMT
+            cell.border = THIN_BORDER
+            ws.cell(row=row, column=3, value="Yes" if pa.buffer_zone else "No").border = THIN_BORDER
+            ws.cell(row=row, column=4, value=pa.sensitivity.title()).border = THIN_BORDER
+            row += 1
+
+    # ── Resettlement Risk ──
+    row += 1
+    ws.cell(row=row, column=1, value="RESETTLEMENT RISK").font = SECTION_FONT
+    row += 1
+    resettle_data = [
+        ("Resettlement Risk", ess.resettlement_risk),
+        ("Physical Displacement Risk", ess.physical_displacement_risk or "—"),
+        ("Economic Displacement Risk", ess.economic_displacement_risk or "—"),
+        ("Est. Land Requirement (ha)", round(ess.estimated_land_requirement_ha, 2)),
+    ]
+    for label, val in resettle_data:
+        ws.cell(row=row, column=1, value=label).border = THIN_BORDER
+        ws.cell(row=row, column=2, value=val).border = THIN_BORDER
+        row += 1
+    if ess.resettlement_notes:
+        ws.cell(row=row, column=1, value="Notes").border = THIN_BORDER
+        ws.cell(row=row, column=2, value=ess.resettlement_notes).border = THIN_BORDER
+        row += 1
+
+    # ── Overall ESS Risk ──
+    row += 1
+    ws.cell(row=row, column=1, value="OVERALL ESS RISK").font = SECTION_FONT
+    row += 1
+    ws.cell(row=row, column=1, value="Overall Risk Level").border = THIN_BORDER
+    ws.cell(row=row, column=2, value=ess.overall_ess_risk.upper()).border = THIN_BORDER
+    row += 1
+
+    # ── Stakeholder Groups ──
+    if ess.stakeholder_groups:
+        row += 1
+        ws.cell(row=row, column=1, value="STAKEHOLDER GROUPS").font = SECTION_FONT
+        row += 1
+        for sg in ess.stakeholder_groups:
+            ws.cell(row=row, column=1, value=sg).border = THIN_BORDER
+            row += 1
+
+    # ── GESI Considerations ──
+    if ess.gesi_considerations:
+        row += 1
+        ws.cell(row=row, column=1, value="GESI CONSIDERATIONS").font = SECTION_FONT
+        row += 1
+        for g in ess.gesi_considerations:
+            ws.cell(row=row, column=1, value=g).border = THIN_BORDER
+            row += 1
+
+    if ess.womens_empowerment_opportunities:
+        row += 1
+        ws.cell(row=row, column=1, value="Women's Empowerment Opportunities").font = Font(bold=True)
+        row += 1
+        for opp in ess.womens_empowerment_opportunities:
+            ws.cell(row=row, column=1, value=opp).border = THIN_BORDER
+            row += 1
+
+    if ess.inclusion_measures:
+        row += 1
+        ws.cell(row=row, column=1, value="Inclusion Measures").font = Font(bold=True)
+        row += 1
+        for m in ess.inclusion_measures:
+            ws.cell(row=row, column=1, value=m).border = THIN_BORDER
+            row += 1
+
+    # ── Recommended Actions ──
+    if ess.recommended_actions:
+        row += 1
+        ws.cell(row=row, column=1, value="RECOMMENDED ACTIONS").font = SECTION_FONT
+        row += 1
+        for action in ess.recommended_actions:
+            ws.cell(row=row, column=1, value=action).border = THIN_BORDER
+            row += 1
+
+    if ess.warnings:
+        row += 1
+        ws.cell(row=row, column=1, value="WARNINGS").font = SECTION_FONT
+        row += 1
+        for w in ess.warnings:
+            ws.cell(row=row, column=1, value=w).border = THIN_BORDER
+            row += 1
+
+
+# ── Climate Sheet ──────────────────────────────────────────────────
+
+def _build_climate_sheet(wb: Workbook, r: AnalysisResult):
+    ws = wb.create_sheet("Climate")
+    cl = r.climate
+
+    for col, width in [("A", 28), ("B", 18), ("C", 36), ("D", 36)]:
+        ws.column_dimensions[col].width = width
+
+    row = 1
+    ws.cell(row=row, column=1, value="CLIMATE RATIONALE").font = SECTION_FONT
+    row += 2
+
+    # ── Climate Hazards ──
+    ws.cell(row=row, column=1, value="CLIMATE HAZARDS").font = SECTION_FONT
+    row += 1
+    hazard_headers = ["Hazard", "Level", "Description", "Design Measures"]
+    for c, h in enumerate(hazard_headers, 1):
+        ws.cell(row=row, column=c, value=h)
+    _style_header_row(ws, row, len(hazard_headers))
+    row += 1
+
+    for hz in cl.hazards:
+        ws.cell(row=row, column=1, value=hz.hazard.replace("_", " ").title()).border = THIN_BORDER
+        ws.cell(row=row, column=2, value=hz.level.replace("_", " ").title()).border = THIN_BORDER
+        ws.cell(row=row, column=3, value=hz.description).border = THIN_BORDER
+        ws.cell(row=row, column=4, value=", ".join(hz.design_measures) if hz.design_measures else "—").border = THIN_BORDER
+        row += 1
+
+    ws.cell(row=row, column=1, value="Overall Hazard Level").font = Font(bold=True)
+    ws.cell(row=row, column=1).border = THIN_BORDER
+    ws.cell(row=row, column=2, value=cl.overall_hazard_level.replace("_", " ").title()).border = THIN_BORDER
+    row += 1
+
+    if cl.design_resilience_measures:
+        row += 1
+        ws.cell(row=row, column=1, value="Design Resilience Measures").font = Font(bold=True)
+        row += 1
+        for m in cl.design_resilience_measures:
+            ws.cell(row=row, column=1, value=m).border = THIN_BORDER
+            row += 1
+
+    # ── Mitigation Summary ──
+    row += 1
+    ws.cell(row=row, column=1, value="MITIGATION SUMMARY").font = SECTION_FONT
+    row += 1
+    mitigation_data = [
+        ("Lifetime Avoided Emissions", round(cl.lifetime_avoided_tco2e, 1), "tCO2e"),
+        ("Per Capita Reduction", round(cl.per_capita_reduction_tco2e, 3), "tCO2e"),
+        ("NDC Alignment", cl.ndc_alignment, ""),
+    ]
+    for label, val, unit in mitigation_data:
+        ws.cell(row=row, column=1, value=label).border = THIN_BORDER
+        ws.cell(row=row, column=2, value=val).border = THIN_BORDER
+        ws.cell(row=row, column=3, value=unit).border = THIN_BORDER
+        row += 1
+
+    # ── Adaptation ──
+    row += 1
+    ws.cell(row=row, column=1, value="ADAPTATION").font = SECTION_FONT
+    row += 1
+    ws.cell(row=row, column=1, value="Adaptation Narrative").border = THIN_BORDER
+    ws.cell(row=row, column=2, value=cl.adaptation_narrative).border = THIN_BORDER
+    row += 1
+    ws.cell(row=row, column=1, value="Water Security").border = THIN_BORDER
+    ws.cell(row=row, column=2, value=cl.water_security_contribution).border = THIN_BORDER
+    row += 1
+    ws.cell(row=row, column=1, value="Food Security").border = THIN_BORDER
+    ws.cell(row=row, column=2, value=cl.food_security_contribution).border = THIN_BORDER
+    row += 1
+    ws.cell(row=row, column=1, value="Energy Access Adaptation").border = THIN_BORDER
+    ws.cell(row=row, column=2, value=cl.energy_access_adaptation).border = THIN_BORDER
+    row += 1
+
+    # ── Climate Finance ──
+    row += 1
+    ws.cell(row=row, column=1, value="CLIMATE FINANCE ELIGIBILITY").font = SECTION_FONT
+    row += 1
+    fin_headers = ["Instrument", "Eligible", "Est. Value USD", "Rationale"]
+    for c, h in enumerate(fin_headers, 1):
+        ws.cell(row=row, column=c, value=h)
+    _style_header_row(ws, row, len(fin_headers))
+    row += 1
+
+    for cf in cl.climate_finance:
+        ws.cell(row=row, column=1, value=cf.instrument).border = THIN_BORDER
+        ws.cell(row=row, column=2, value="Yes" if cf.eligible else "No").border = THIN_BORDER
+        cell = ws.cell(row=row, column=3, value=round(cf.estimated_value_usd, 0))
+        cell.number_format = USD_FMT
+        cell.border = THIN_BORDER
+        ws.cell(row=row, column=4, value=cf.rationale).border = THIN_BORDER
+        row += 1
+
+    row += 1
+    ws.cell(row=row, column=1, value="Climate Finance Score").font = Font(bold=True)
+    ws.cell(row=row, column=1).border = THIN_BORDER
+    ws.cell(row=row, column=2, value=cl.climate_finance_score.upper()).border = THIN_BORDER
+    row += 1
+    ws.cell(row=row, column=1, value="Total Climate Finance Potential").font = Font(bold=True)
+    ws.cell(row=row, column=1).border = THIN_BORDER
+    cell = ws.cell(row=row, column=2, value=round(cl.total_climate_finance_potential_usd, 0))
+    cell.number_format = USD_FMT
+    cell.border = THIN_BORDER
+    ws.cell(row=row, column=3, value="USD").border = THIN_BORDER
+
+    if cl.warnings:
+        row += 2
+        ws.cell(row=row, column=1, value="WARNINGS").font = SECTION_FONT
+        row += 1
+        for w in cl.warnings:
+            ws.cell(row=row, column=1, value=w).border = THIN_BORDER
+            row += 1
+
+
+# ── Risk Register Sheet ───────────────────────────────────────────
+
+def _build_risk_register_sheet(wb: Workbook, r: AnalysisResult):
+    ws = wb.create_sheet("Risk Register")
+    ra = r.risk_analysis
+
+    for col, width in [
+        ("A", 16), ("B", 24), ("C", 12), ("D", 10), ("E", 10),
+        ("F", 10), ("G", 36), ("H", 14),
+    ]:
+        ws.column_dimensions[col].width = width
+
+    row = 1
+    ws.cell(row=row, column=1, value="RISK REGISTER").font = SECTION_FONT
+    row += 2
+
+    # ── Overall Risk ──
+    ws.cell(row=row, column=1, value="Overall Risk Level").font = Font(bold=True)
+    ws.cell(row=row, column=1).border = THIN_BORDER
+    ws.cell(row=row, column=2, value=ra.overall_risk_level.upper()).border = THIN_BORDER
+    row += 1
+    ws.cell(row=row, column=1, value="Overall Risk Score").font = Font(bold=True)
+    ws.cell(row=row, column=1).border = THIN_BORDER
+    ws.cell(row=row, column=2, value=round(ra.overall_risk_score, 1)).border = THIN_BORDER
+    row += 1
+    ws.cell(row=row, column=1, value="Mitigation Investment").font = Font(bold=True)
+    ws.cell(row=row, column=1).border = THIN_BORDER
+    cell = ws.cell(row=row, column=2, value=round(ra.mitigation_investment_usd, 0))
+    cell.number_format = USD_FMT
+    cell.border = THIN_BORDER
+    ws.cell(row=row, column=3, value="USD").border = THIN_BORDER
+    row += 1
+
+    # ── Top Risks ──
+    if ra.top_risks:
+        row += 1
+        ws.cell(row=row, column=1, value="TOP RISKS").font = SECTION_FONT
+        row += 1
+        for i, tr in enumerate(ra.top_risks, 1):
+            ws.cell(row=row, column=1, value=f"{i}.").border = THIN_BORDER
+            ws.cell(row=row, column=2, value=tr).border = THIN_BORDER
+            row += 1
+
+    # ── Full Risk Matrix ──
+    row += 1
+    ws.cell(row=row, column=1, value="RISK MATRIX").font = SECTION_FONT
+    row += 1
+    risk_headers = ["Category", "Sub-Risk", "Likelihood", "Impact", "Score", "Level", "Mitigation", "Allocation"]
+    for c, h in enumerate(risk_headers, 1):
+        ws.cell(row=row, column=c, value=h)
+    _style_header_row(ws, row, len(risk_headers))
+    row += 1
+
+    for ri in ra.risks:
+        ws.cell(row=row, column=1, value=ri.category.title()).border = THIN_BORDER
+        ws.cell(row=row, column=2, value=ri.sub_risk).border = THIN_BORDER
+        ws.cell(row=row, column=3, value=ri.likelihood).border = THIN_BORDER
+        ws.cell(row=row, column=4, value=ri.impact).border = THIN_BORDER
+        ws.cell(row=row, column=5, value=ri.risk_score).border = THIN_BORDER
+        ws.cell(row=row, column=6, value=ri.risk_level.upper()).border = THIN_BORDER
+        ws.cell(row=row, column=7, value="; ".join(ri.mitigation) if ri.mitigation else "—").border = THIN_BORDER
+        ws.cell(row=row, column=8, value=ri.allocation.title()).border = THIN_BORDER
+        row += 1
+
+    if ra.warnings:
+        row += 1
+        ws.cell(row=row, column=1, value="WARNINGS").font = SECTION_FONT
+        row += 1
+        for w in ra.warnings:
+            ws.cell(row=row, column=1, value=w).border = THIN_BORDER
+            row += 1
+
+
+# ── Confidence Sheet ───────────────────────────────────────────────
+
+def _build_confidence_sheet(wb: Workbook, r: AnalysisResult):
+    ws = wb.create_sheet("Confidence")
+    ca = r.confidence
+
+    for col, width in [("A", 24), ("B", 12), ("C", 18), ("D", 14), ("E", 18)]:
+        ws.column_dimensions[col].width = width
+
+    row = 1
+    ws.cell(row=row, column=1, value="CONFIDENCE ASSESSMENT").font = SECTION_FONT
+    row += 2
+
+    # ── Overall Score ──
+    ws.cell(row=row, column=1, value="Overall Confidence Score").font = Font(bold=True)
+    ws.cell(row=row, column=1).border = THIN_BORDER
+    ws.cell(row=row, column=2, value=ca.overall_confidence_score).border = THIN_BORDER
+    ws.cell(row=row, column=3, value=f"/ 100").border = THIN_BORDER
+    row += 1
+    ws.cell(row=row, column=1, value="Overall Confidence Level").font = Font(bold=True)
+    ws.cell(row=row, column=1).border = THIN_BORDER
+    ws.cell(row=row, column=2, value=ca.overall_confidence_level.upper()).border = THIN_BORDER
+    row += 1
+    ws.cell(row=row, column=1, value="Data Completeness").font = Font(bold=True)
+    ws.cell(row=row, column=1).border = THIN_BORDER
+    cell = ws.cell(row=row, column=2, value=round(ca.data_completeness_pct / 100, 3))
+    cell.number_format = PCT_FMT
+    cell.border = THIN_BORDER
+    row += 2
+
+    # ── Dimension Table ──
+    ws.cell(row=row, column=1, value="CONFIDENCE DIMENSIONS").font = SECTION_FONT
+    row += 1
+    dim_headers = ["Dimension", "Score", "Margin of Error %", "Data Quality", "Calibration Status"]
+    for c, h in enumerate(dim_headers, 1):
+        ws.cell(row=row, column=c, value=h)
+    _style_header_row(ws, row, len(dim_headers))
+    row += 1
+
+    for d in ca.dimensions:
+        ws.cell(row=row, column=1, value=d.dimension).border = THIN_BORDER
+        ws.cell(row=row, column=2, value=d.confidence_score).border = THIN_BORDER
+        cell = ws.cell(row=row, column=3, value=round(d.margin_of_error_pct, 1))
+        cell.number_format = '0.0'
+        cell.border = THIN_BORDER
+        ws.cell(row=row, column=4, value=d.data_quality.title()).border = THIN_BORDER
+        ws.cell(row=row, column=5, value=d.calibration_status).border = THIN_BORDER
+        row += 1
+
+    # ── Recommendations ──
+    if ca.recommendations:
+        row += 1
+        ws.cell(row=row, column=1, value="RECOMMENDATIONS").font = SECTION_FONT
+        row += 1
+        for i, rec in enumerate(ca.recommendations, 1):
+            ws.cell(row=row, column=1, value=f"{i}.").border = THIN_BORDER
+            ws.cell(row=row, column=2, value=rec).border = THIN_BORDER
+            row += 1
+
+    if ca.warnings:
+        row += 1
         ws.cell(row=row, column=1, value="WARNINGS").font = SECTION_FONT
         row += 1
         for w in ca.warnings:

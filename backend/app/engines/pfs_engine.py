@@ -9,7 +9,14 @@ from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.oxml.ns import qn
 import io
 
-from app.schemas.analysis import AnalysisResult
+from app.schemas.analysis import (
+    AnalysisResult,
+    ProductiveUseAssessment,
+    ESSScreening,
+    ClimateRationale,
+    RiskAnalysis,
+    ConfidenceAssessment,
+)
 
 
 def generate_pfs_docx(result: AnalysisResult) -> bytes:
@@ -25,6 +32,11 @@ def generate_pfs_docx(result: AnalysisResult) -> bytes:
     sol = r.solar_resource
     dist = r.distribution
     carb = r.carbon
+    pu = r.productive_use
+    ess = r.ess
+    climate = r.climate
+    risk = r.risk_analysis
+    conf = r.confidence
 
     site_name = cl.village_name or r.site.name or "Unnamed"
     province = cl.admin_region or "Unknown"
@@ -297,12 +309,98 @@ def generate_pfs_docx(result: AnalysisResult) -> bytes:
         f"while the affordable tariff assumption is USD {f.affordable_tariff_usd:.2f}/kWh."
     )
 
+    # ── 6. Productive Use Value Chain Analysis ────────────────────
+    if pu is not None:
+        doc.add_page_break()
+        _h1(doc, "6. Productive Use Value Chain Analysis")
+
+        doc.add_paragraph(
+            f"This chapter assesses productive use opportunities for the {site_name} mini-grid "
+            f"catchment area. Productive use of energy is critical for demand sustainability, "
+            f"revenue stability, and development impact. Total productive use demand is estimated at "
+            f"{pu.total_productive_demand_kwh_day:.1f} kWh/day, representing "
+            f"{pu.productive_demand_pct:.0f}% of total projected demand."
+        )
+
+        if pu.sectors:
+            _h2(doc, "6.1 Relevant Sectors")
+            _h3(doc, "Table 6-1: Productive use sector relevance assessment")
+            sector_table = [["Sector", "Relevance", "Key Activities"]]
+            for sec in pu.sectors:
+                activities = "; ".join(sec.indicative_activities[:3]) if sec.indicative_activities else "—"
+                sector_table.append([sec.sector, sec.relevance.title(), activities])
+            _add_table(doc, sector_table)
+
+        if pu.anchors:
+            _h2(doc, "6.2 Anchor Customers")
+            _h3(doc, "Table 6-2: Identified anchor customer opportunities")
+            anchor_table = [["Type", "Name", "Demand (kWh/day)", "Peak (kW)", "Contract Type"]]
+            for ac in pu.anchors:
+                anchor_table.append([
+                    ac.type, ac.name,
+                    f"{ac.estimated_demand_kwh_day:.1f}",
+                    f"{ac.estimated_peak_kw:.1f}",
+                    ac.contract_type,
+                ])
+            _add_table(doc, anchor_table)
+
+        if pu.equipment_recommendations:
+            _h2(doc, "6.3 Equipment Recommendations")
+            _h3(doc, "Table 6-3: Productive use equipment recommendations")
+            equip_table = [["Sector", "Equipment", "Power (kW)", "CAPEX Range (USD)", "Ownership Model"]]
+            for eq in pu.equipment_recommendations:
+                equip_table.append([
+                    eq.sector, eq.equipment,
+                    f"{eq.power_kw:.1f}",
+                    f"{eq.capex_usd_low:,.0f}–{eq.capex_usd_high:,.0f}",
+                    eq.ownership_model,
+                ])
+            _add_table(doc, equip_table)
+
+        if pu.complementary_investment_usd:
+            _h2(doc, "6.4 Complementary Investment Requirements")
+            _h3(doc, "Table 6-4: Complementary investment summary")
+            comp_table = [["Investment Category", "Estimated Cost (USD)"]]
+            total_comp = 0.0
+            for cat, val in pu.complementary_investment_usd.items():
+                comp_table.append([cat.replace("_", " ").title(), f"{val:,.0f}"])
+                total_comp += val
+            comp_table.append(["Total", f"{total_comp:,.0f}"])
+            _add_table(doc, comp_table)
+
+        if pu.jobs or pu.incremental_income_usd_year > 0:
+            _h2(doc, "6.5 Job and Income Projections")
+            if pu.jobs:
+                _h3(doc, "Table 6-5: Employment projections by sector")
+                job_table = [["Sector / Category", "Estimate"]]
+                for cat, val in pu.jobs.items():
+                    job_table.append([cat.replace("_", " ").title(), str(val)])
+                _add_table(doc, job_table)
+            if pu.incremental_income_usd_year > 0:
+                doc.add_paragraph(
+                    f"Estimated incremental income from productive use activities is "
+                    f"USD {pu.incremental_income_usd_year:,.0f}/year across the service area."
+                )
+
+        if pu.demand_stimulation:
+            _h2(doc, "6.6 Demand Stimulation Programme")
+            _h3(doc, "Table 6-6: Demand stimulation programme summary")
+            stim_table = [["Programme Element", "Detail"]]
+            for k, v in pu.demand_stimulation.items():
+                stim_table.append([k.replace("_", " ").title(), str(v)])
+            _add_table(doc, stim_table)
+
+        if pu.warnings:
+            doc.add_paragraph()
+            for w in pu.warnings:
+                doc.add_paragraph(f"Note: {w}", style="List Bullet")
+
     doc.add_page_break()
 
-    # ── 6. Technical Design Concept ─────────────────────────────
-    _h1(doc, "6. Technical Design Concept")
+    # ── 7. Technical Design Concept ─────────────────────────────
+    _h1(doc, "7. Technical Design Concept")
 
-    _h2(doc, "6.1 Technology Selection")
+    _h2(doc, "7.1 Technology Selection")
     doc.add_paragraph(
         f"The preferred technical concept is a fixed-tilt solar PV mini-grid with battery storage "
         f"and low-voltage local distribution, auto-sized to meet the estimated settlement demand of "
@@ -310,8 +408,8 @@ def generate_pfs_docx(result: AnalysisResult) -> bytes:
         f"overnight demand."
     )
 
-    _h2(doc, "6.2 System Configuration and Sizing")
-    _h3(doc, "Table 6-1: System configuration and sizing parameters")
+    _h2(doc, "7.2 System Configuration and Sizing")
+    _h3(doc, "Table 7-1: System configuration and sizing parameters")
     sizing_table = [
         ["Parameter", "Value", "Note"],
         ["Installed DC Capacity", f"{pv_kwp:.1f} kWp", "Auto-sized to meet demand"],
@@ -324,7 +422,7 @@ def generate_pfs_docx(result: AnalysisResult) -> bytes:
     ]
     _add_table(doc, sizing_table)
 
-    _h2(doc, "6.3 Energy Yield Estimate")
+    _h2(doc, "7.3 Energy Yield Estimate")
     doc.add_paragraph(
         f"Using an 8,760-hour dispatch simulation with hourly solar irradiance from PVGIS 5.3 "
         f"and the estimated load profile, the system is expected to generate approximately "
@@ -333,7 +431,7 @@ def generate_pfs_docx(result: AnalysisResult) -> bytes:
         f"{s.curtailment_pct:.1f}% curtailment."
     )
 
-    _h3(doc, "Table 6-2: Dispatch simulation results")
+    _h3(doc, "Table 7-2: Dispatch simulation results")
     dispatch_table = [
         ["Parameter", "Value"],
         ["Annual gross generation", f"{ann_gen_mwh:.1f} MWh/year"],
@@ -346,14 +444,14 @@ def generate_pfs_docx(result: AnalysisResult) -> bytes:
     _add_table(doc, dispatch_table)
 
     if dist:
-        _h2(doc, "6.4 Distribution Network")
+        _h2(doc, "7.4 Distribution Network")
         doc.add_paragraph(
             f"The low-voltage distribution network is estimated using a radial model. "
             f"Total line length is {dist.total_line_length_m:,.0f} m with {dist.pole_count} poles "
             f"serving {dist.customers_connected} connections. Estimated maximum voltage drop is "
             f"{dist.voltage_drop_max_pct:.1f}% and technical losses are {dist.technical_losses_pct:.1f}%."
         )
-        _h3(doc, "Table 6-3: Distribution network summary")
+        _h3(doc, "Table 7-3: Distribution network summary")
         dist_table = [
             ["Parameter", "Value"],
             ["Total line length", f"{dist.total_line_length_m:,.0f} m"],
@@ -368,17 +466,17 @@ def generate_pfs_docx(result: AnalysisResult) -> bytes:
 
     doc.add_page_break()
 
-    # ── 7. Regulatory and Permitting Framework ──────────────────
-    _h1(doc, "7. Regulatory and Permitting Framework")
+    # ── 8. Regulatory and Permitting Framework ──────────────────
+    _h1(doc, "8. Regulatory and Permitting Framework")
 
-    _h2(doc, "7.1 Energy Sector Regulatory Overview")
+    _h2(doc, "8.1 Energy Sector Regulatory Overview")
     doc.add_paragraph(
         "Mozambique's regulatory framework for rural isolated solar mini-grids is governed by "
         "Law No. 11/2017 (establishing ARENE), Law No. 12/2022 (electricity sector), "
         "Decree No. 93/2021 (off-grid and mini-grid access up to 10 MW), and the 2023 mini-grid "
         "concession award regulation."
     )
-    _h3(doc, "Table 7-1: Key regulatory institutions")
+    _h3(doc, "Table 8-1: Key regulatory institutions")
     reg_table = [
         ["Institution", "Role", "Relevance"],
         ["MIREME", "Sector ministry and concession-granting authority", "Provides formal policy backbone"],
@@ -388,7 +486,7 @@ def generate_pfs_docx(result: AnalysisResult) -> bytes:
     ]
     _add_table(doc, reg_table)
 
-    _h2(doc, "7.2 Indicative Permitting Timeline")
+    _h2(doc, "8.2 Indicative Permitting Timeline")
     doc.add_paragraph(
         f"The indicative permitting duration for {site_name} is 6–15 months, with variation driven "
         f"by DUAT complexity, environmental categorisation, and review speed."
@@ -396,10 +494,10 @@ def generate_pfs_docx(result: AnalysisResult) -> bytes:
 
     doc.add_page_break()
 
-    # ── 8. Environmental and Social Screening ───────────────────
-    _h1(doc, "8. Environmental and Social Screening")
+    # ── 9. Environmental and Social Safeguards ───────────────────
+    _h1(doc, "9. Environmental and Social Safeguards")
 
-    _h2(doc, "8.1 Environmental Screening")
+    _h2(doc, "9.1 Environmental Screening")
     suitable = r.screening.is_suitable
     doc.add_paragraph(
         f"Desktop land screening for the proposed {site_name} mini-grid indicates "
@@ -409,25 +507,93 @@ def generate_pfs_docx(result: AnalysisResult) -> bytes:
         for w in r.screening.warnings:
             doc.add_paragraph(f"• {w.message}")
 
-    _h2(doc, "8.2 Preliminary E&S Risk Classification")
-    doc.add_paragraph(
-        f"On a pre-feasibility basis, the {site_name} mini-grid is best classified as a "
-        f"Category B / moderate risk project under an IFC-style framework."
-    )
+    if ess is not None:
+        _h2(doc, "9.2 ESIA Category and Classification")
+        doc.add_paragraph(
+            f"Based on the screening assessment, the project is classified as "
+            f"ESIA Category {ess.esia_category} under the IFC Performance Standards framework. "
+            f"{ess.esia_rationale}"
+        )
+        doc.add_paragraph(
+            f"Overall ESS risk is assessed as {ess.overall_ess_risk.upper()}."
+        )
+        if ess.esia_requirements:
+            doc.add_paragraph("Key ESIA requirements:")
+            for req in ess.esia_requirements:
+                doc.add_paragraph(req, style="List Bullet")
+
+        if ess.protected_area_checks:
+            _h2(doc, "9.3 Biodiversity Screening")
+            doc.add_paragraph(
+                f"Biodiversity sensitivity is assessed as {ess.biodiversity_sensitivity}. "
+                + (ess.biodiversity_notes if ess.biodiversity_notes else "")
+            )
+            _h3(doc, "Table 9-1: Protected area proximity screening")
+            bio_table = [["Protected Area", "Distance (km)", "Buffer Zone", "Sensitivity"]]
+            for pa in ess.protected_area_checks:
+                bio_table.append([
+                    pa.area_name,
+                    f"{pa.distance_km:.1f}",
+                    "Yes" if pa.buffer_zone else "No",
+                    pa.sensitivity.title(),
+                ])
+            _add_table(doc, bio_table)
+
+        _h2(doc, "9.4 Resettlement Risk Assessment")
+        doc.add_paragraph(
+            f"Resettlement risk is assessed as {ess.resettlement_risk.upper()}. "
+            f"Estimated land requirement is {ess.estimated_land_requirement_ha:.2f} ha."
+        )
+        if ess.physical_displacement_risk:
+            doc.add_paragraph(f"Physical displacement risk: {ess.physical_displacement_risk}")
+        if ess.economic_displacement_risk:
+            doc.add_paragraph(f"Economic displacement risk: {ess.economic_displacement_risk}")
+        if ess.resettlement_notes:
+            doc.add_paragraph(ess.resettlement_notes)
+
+        if ess.gesi_considerations or ess.womens_empowerment_opportunities or ess.inclusion_measures:
+            _h2(doc, "9.5 Gender Equality and Social Inclusion (GESI)")
+            if ess.gesi_considerations:
+                doc.add_paragraph("GESI considerations:")
+                for g in ess.gesi_considerations:
+                    doc.add_paragraph(g, style="List Bullet")
+            if ess.womens_empowerment_opportunities:
+                doc.add_paragraph("Women's empowerment opportunities:")
+                for w in ess.womens_empowerment_opportunities:
+                    doc.add_paragraph(w, style="List Bullet")
+            if ess.inclusion_measures:
+                doc.add_paragraph("Inclusion measures:")
+                for m in ess.inclusion_measures:
+                    doc.add_paragraph(m, style="List Bullet")
+
+        if ess.recommended_actions:
+            _h2(doc, "9.6 Recommended ESS Actions")
+            for action in ess.recommended_actions:
+                doc.add_paragraph(action, style="List Bullet")
+
+        if ess.warnings:
+            for w in ess.warnings:
+                doc.add_paragraph(f"Note: {w}", style="List Bullet")
+    else:
+        _h2(doc, "9.2 Preliminary E&S Risk Classification")
+        doc.add_paragraph(
+            f"On a pre-feasibility basis, the {site_name} mini-grid is best classified as a "
+            f"Category B / moderate risk project under an IFC-style framework."
+        )
 
     doc.add_page_break()
 
-    # ── 9. Financial Analysis ───────────────────────────────────
-    _h1(doc, "9. Financial Analysis")
+    # ── 10. Financial Analysis ───────────────────────────────────
+    _h1(doc, "10. Financial Analysis")
 
-    _h2(doc, "9.1 Capital Expenditure (CAPEX)")
+    _h2(doc, "10.1 Capital Expenditure (CAPEX)")
     bk = f.capex_breakdown
     total_capex = f.total_capex_usd
     doc.add_paragraph(
         f"The total project CAPEX is estimated at USD {total_capex:,.0f}, corresponding to "
         f"USD {f.capex_per_wp:.2f}/Wp on a PV-nameplate basis."
     )
-    _h3(doc, "Table 9-1: Indicative CAPEX breakdown")
+    _h3(doc, "Table 10-1: Indicative CAPEX breakdown")
     capex_table = [
         ["Component", "USD", "USD/Wp", "% of Total"],
         ["PV modules + mounting + BOS", f"{bk.pv:,.0f}", f"{bk.pv / (pv_kwp * 1000):.2f}", f"{bk.pv/total_capex*100:.1f}%"],
@@ -440,10 +606,10 @@ def generate_pfs_docx(result: AnalysisResult) -> bytes:
     ]
     _add_table(doc, capex_table)
 
-    _h2(doc, "9.2 Operating Expenditure (OPEX)")
+    _h2(doc, "10.2 Operating Expenditure (OPEX)")
     opex = f.opex_breakdown
     if opex:
-        _h3(doc, "Table 9-2: Indicative annual OPEX breakdown")
+        _h3(doc, "Table 10-2: Indicative annual OPEX breakdown")
         opex_table = [
             ["OPEX Category", "USD/year", "Note"],
             ["Generation O&M", f"{opex.generation_om:,.0f}", f"{opex.generation_om/total_capex*100:.1f}% of gen CAPEX"],
@@ -455,7 +621,7 @@ def generate_pfs_docx(result: AnalysisResult) -> bytes:
         ]
         _add_table(doc, opex_table)
 
-    _h2(doc, "9.3 Revenue Model")
+    _h2(doc, "10.3 Revenue Model")
     energy_sold = (s.annual_energy_served_kwh or d.annual_energy_kwh) * 0.92
     doc.add_paragraph(
         f"Using an indicative annual energy sold figure of {energy_sold/1000:.0f} MWh/year "
@@ -464,8 +630,8 @@ def generate_pfs_docx(result: AnalysisResult) -> bytes:
         f"USD {f.annual_revenue_usd:,.0f}/year."
     )
 
-    _h2(doc, "9.4 Key Financial Indicators")
-    _h3(doc, "Table 9-3: Indicative financial screening summary")
+    _h2(doc, "10.4 Key Financial Indicators")
+    _h3(doc, "Table 10-3: Indicative financial screening summary")
     fin_table = [
         ["Financial Metric", "Value", "Note"],
         ["Project IRR", f"{f.irr_pct:.1f}%", "Pre-tax, nominal"],
@@ -479,15 +645,15 @@ def generate_pfs_docx(result: AnalysisResult) -> bytes:
     ]
     _add_table(doc, fin_table)
 
-    _h2(doc, "9.5 Sensitivity Analysis")
-    _h3(doc, "Table 9-4: Sensitivity analysis")
+    _h2(doc, "10.5 Sensitivity Analysis")
+    _h3(doc, "Table 10-4: Sensitivity analysis")
     sens_table = [["Variable", "IRR @ Low", "IRR @ Base", "IRR @ High"]]
     for sv in f.sensitivity:
         sens_table.append([sv.parameter, f"{sv.irr_at_low:.1f}%", f"{sv.irr_at_base:.1f}%", f"{sv.irr_at_high:.1f}%"])
     _add_table(doc, sens_table)
 
-    _h2(doc, "9.6 Indicative Financing Structure")
-    _h3(doc, "Table 9-5: Indicative blended financing structure")
+    _h2(doc, "10.6 Indicative Financing Structure")
+    _h3(doc, "Table 10-5: Indicative blended financing structure")
     fin_struct = [
         ["Financing Component", "Amount (USD)", "Share", "Likely Sources"],
         ["Grant / results-based subsidy", f"{f.grant_amount_usd:,.0f}", f"{f.subsidy_gap_pct_capex:.0f}%",
@@ -501,15 +667,18 @@ def generate_pfs_docx(result: AnalysisResult) -> bytes:
 
     doc.add_page_break()
 
-    # ── 10. Carbon Assessment ───────────────────────────────────
+    # ── 11. Climate Rationale and Carbon Assessment ──────────────
+    if carb or climate is not None:
+        _h1(doc, "11. Climate Rationale and Carbon Assessment")
+
     if carb:
-        _h1(doc, "10. Carbon Credit Assessment")
+        _h2(doc, "11.1 Carbon Credit Assessment")
         doc.add_paragraph(
             f"The {site_name} mini-grid displaces diesel generation, enabling carbon credit revenue. "
             f"Annual emission reductions are estimated at {carb.annual_emission_reductions_tco2e:.1f} tCO2e/year, "
             f"displacing {carb.diesel_displaced_litres_yr:,.0f} litres of diesel per year."
         )
-        _h3(doc, "Table 10-1: Carbon credit assessment summary")
+        _h3(doc, "Table 11-1: Carbon credit assessment summary")
         carbon_table = [
             ["Parameter", "Value"],
             ["Annual emission reductions", f"{carb.annual_emission_reductions_tco2e:.1f} tCO2e/yr"],
@@ -521,17 +690,86 @@ def generate_pfs_docx(result: AnalysisResult) -> bytes:
         ]
         _add_table(doc, carbon_table)
 
-        _h3(doc, "Table 10-2: Revenue by price scenario")
+        _h3(doc, "Table 11-2: Revenue by price scenario")
         rev_table = [["Scenario", "Annual Revenue (USD)", "NPV (USD)"]]
         for sc, rev in sorted(carb.revenue_by_scenario.items()):
             npv = carb.npv_carbon_revenue.get(sc, 0)
             rev_table.append([sc.replace("_", " ").title(), f"{rev:,.0f}", f"{npv:,.0f}"])
         _add_table(doc, rev_table)
 
+    if climate is not None:
+        _h2(doc, "11.2 Climate Hazard Exposure")
+        doc.add_paragraph(
+            f"The overall climate hazard level for {site_name} is assessed as "
+            f"{climate.overall_hazard_level.upper()}."
+        )
+        if climate.hazards:
+            _h3(doc, "Table 11-3: Climate hazard exposure assessment")
+            hazard_table = [["Hazard", "Exposure Level", "Description", "Key Design Measures"]]
+            for hz in climate.hazards:
+                measures = "; ".join(hz.design_measures[:2]) if hz.design_measures else "—"
+                hazard_table.append([
+                    hz.hazard.replace("_", " ").title(),
+                    hz.level.replace("_", " ").title(),
+                    hz.description,
+                    measures,
+                ])
+            _add_table(doc, hazard_table)
+
+        _h2(doc, "11.3 Adaptation Narrative")
+        doc.add_paragraph(climate.adaptation_narrative)
+        if climate.climate_resilient_livelihoods:
+            doc.add_paragraph("Climate-resilient livelihood co-benefits:")
+            for liv in climate.climate_resilient_livelihoods:
+                doc.add_paragraph(liv, style="List Bullet")
+        if climate.water_security_contribution:
+            doc.add_paragraph(f"Water security contribution: {climate.water_security_contribution}")
+        if climate.food_security_contribution:
+            doc.add_paragraph(f"Food security contribution: {climate.food_security_contribution}")
+        if climate.energy_access_adaptation:
+            doc.add_paragraph(f"Energy access as adaptation: {climate.energy_access_adaptation}")
+
+        _h2(doc, "11.4 NDC Alignment and Mitigation")
+        doc.add_paragraph(climate.ndc_alignment)
+        doc.add_paragraph(
+            f"Lifetime avoided emissions are estimated at {climate.lifetime_avoided_tco2e:,.0f} tCO2e, "
+            f"equivalent to {climate.per_capita_reduction_tco2e:.2f} tCO2e per capita served."
+        )
+
+        if climate.climate_finance:
+            _h2(doc, "11.5 Climate Finance Eligibility")
+            doc.add_paragraph(
+                f"Climate finance eligibility is rated as {climate.climate_finance_score.upper()}, "
+                f"with total estimated potential of USD {climate.total_climate_finance_potential_usd:,.0f}."
+            )
+            _h3(doc, "Table 11-4: Climate finance eligibility assessment")
+            cf_table = [["Instrument", "Eligible", "Rationale", "Est. Value (USD)"]]
+            for cfi in climate.climate_finance:
+                cf_table.append([
+                    cfi.instrument,
+                    "Yes" if cfi.eligible else "No",
+                    cfi.rationale,
+                    f"{cfi.estimated_value_usd:,.0f}" if cfi.estimated_value_usd > 0 else "—",
+                ])
+            _add_table(doc, cf_table)
+
+        if climate.design_resilience_measures:
+            _h2(doc, "11.6 Design Resilience Measures")
+            doc.add_paragraph(
+                "The following design measures are recommended to enhance climate resilience:"
+            )
+            for measure in climate.design_resilience_measures:
+                doc.add_paragraph(measure, style="List Bullet")
+
+        if climate.warnings:
+            for w in climate.warnings:
+                doc.add_paragraph(f"Note: {w}", style="List Bullet")
+
+    if carb or climate is not None:
         doc.add_page_break()
 
-    # ── 11. Grid Risk Assessment ────────────────────────────────
-    _h1(doc, "11. Grid Risk Assessment")
+    # ── 12. Grid Risk Assessment ────────────────────────────────
+    _h1(doc, "12. Grid Risk Assessment")
     doc.add_paragraph(
         f"Grid-interface risk for {site_name} is classified as {gr.risk_level.upper()} "
         f"based on MV grid distance of {gr.dist_mv_km:.1f} km and HV grid distance of "
@@ -543,7 +781,7 @@ def generate_pfs_docx(result: AnalysisResult) -> bytes:
         doc.add_paragraph(f"Design implications: {gr.design_implications}")
 
     if gr.esmap_scores:
-        _h3(doc, "Table 11-1: ESMAP scenario scoring")
+        _h3(doc, "Table 12-1: ESMAP scenario scoring")
         esmap_table = [["Scenario", "Weighted Score", "Timeline", "Financial", "Regulatory"]]
         for es in gr.esmap_scores:
             esmap_table.append([
@@ -556,7 +794,7 @@ def generate_pfs_docx(result: AnalysisResult) -> bytes:
         _add_table(doc, esmap_table)
 
     if gr.scenarios:
-        _h3(doc, "Table 11-2: Grid arrival scenarios")
+        _h3(doc, "Table 12-2: Grid arrival scenarios")
         arrival_table = [["Scenario", "Adjusted IRR", "NPV", "Investment Recovered"]]
         for sc in gr.scenarios:
             arrival_table.append([
@@ -569,10 +807,121 @@ def generate_pfs_docx(result: AnalysisResult) -> bytes:
 
     doc.add_page_break()
 
-    # ── 12. Conclusions and Recommendations ─────────────────────
-    _h1(doc, "12. Conclusions and Recommendations")
+    # ── 13. Risk Analysis ──────────────────────────────────────
+    if risk is not None:
+        _h1(doc, "13. Comprehensive Risk Analysis")
 
-    _h2(doc, "12.1 Viability Assessment")
+        doc.add_paragraph(
+            f"This chapter presents a structured risk register for the {site_name} mini-grid project. "
+            f"The overall project risk is assessed as {risk.overall_risk_level.upper()} "
+            f"with a composite risk score of {risk.overall_risk_score:.1f}/25."
+        )
+
+        if risk.risks:
+            _h2(doc, "13.1 Risk Register")
+            _h3(doc, "Table 13-1: Project risk register")
+            risk_table = [["Category", "Sub-Risk", "L x I Score", "Level", "Mitigation", "Allocation"]]
+            for ri in risk.risks:
+                mitigation_text = "; ".join(ri.mitigation[:2]) if ri.mitigation else "—"
+                risk_table.append([
+                    ri.category.title(),
+                    ri.sub_risk,
+                    f"{ri.likelihood} x {ri.impact} = {ri.risk_score}",
+                    ri.risk_level.title(),
+                    mitigation_text,
+                    ri.allocation.title(),
+                ])
+            _add_table(doc, risk_table)
+
+        _h2(doc, "13.2 Overall Risk Assessment")
+        doc.add_paragraph(
+            f"The overall risk assessment for {site_name} is {risk.overall_risk_level.upper()} "
+            f"(score {risk.overall_risk_score:.1f}/25). "
+        )
+        if risk.mitigation_investment_usd > 0:
+            doc.add_paragraph(
+                f"Estimated investment in risk mitigation measures: "
+                f"USD {risk.mitigation_investment_usd:,.0f}."
+            )
+
+        if risk.top_risks:
+            _h2(doc, "13.3 Top Risks Summary")
+            doc.add_paragraph("The following risks are identified as the highest priority:")
+            for tr in risk.top_risks:
+                doc.add_paragraph(tr, style="List Bullet")
+
+        if risk.risk_allocation_summary:
+            _h3(doc, "Table 13-2: Risk allocation summary")
+            alloc_table = [["Allocation Party", "Number of Risks"]]
+            for party, count in risk.risk_allocation_summary.items():
+                alloc_table.append([party.replace("_", " ").title(), str(count)])
+            _add_table(doc, alloc_table)
+
+        if risk.warnings:
+            for w in risk.warnings:
+                doc.add_paragraph(f"Note: {w}", style="List Bullet")
+
+        doc.add_page_break()
+
+    # ── 14. Confidence and Data Quality ────────────────────────
+    if conf is not None:
+        _h1(doc, "14. Confidence and Data Quality")
+
+        doc.add_paragraph(
+            f"This chapter assesses the confidence level of the pre-feasibility analysis. "
+            f"The overall confidence score is {conf.overall_confidence_score}/100 "
+            f"({conf.overall_confidence_level.upper()}), with data completeness at "
+            f"{conf.data_completeness_pct:.0f}%."
+        )
+
+        if conf.dimensions:
+            _h2(doc, "14.1 Confidence Scores by Dimension")
+            _h3(doc, "Table 14-1: Confidence assessment by analysis dimension")
+            conf_table = [["Dimension", "Score (/100)", "Data Quality", "Margin of Error", "Calibration"]]
+            for dim in conf.dimensions:
+                conf_table.append([
+                    dim.dimension,
+                    str(dim.confidence_score),
+                    dim.data_quality.title(),
+                    f"+/- {dim.margin_of_error_pct:.0f}%",
+                    dim.calibration_status.title(),
+                ])
+            _add_table(doc, conf_table)
+
+            # Add key assumptions for each dimension
+            for dim in conf.dimensions:
+                if dim.key_assumptions:
+                    _h3(doc, f"Key assumptions — {dim.dimension}")
+                    for assumption in dim.key_assumptions:
+                        doc.add_paragraph(assumption, style="List Bullet")
+
+        _h2(doc, "14.2 Data Completeness")
+        doc.add_paragraph(
+            f"Overall data completeness for this pre-feasibility study is "
+            f"{conf.data_completeness_pct:.0f}%. "
+            f"This reflects the proportion of inputs supported by curated secondary data "
+            f"versus screening-level defaults."
+        )
+
+        if conf.recommendations:
+            _h2(doc, "14.3 Recommendations for Improvement")
+            doc.add_paragraph(
+                "The following actions are recommended to improve confidence in the analysis "
+                "ahead of full feasibility:"
+            )
+            for rec in conf.recommendations:
+                doc.add_paragraph(rec, style="List Bullet")
+
+        if conf.warnings:
+            for w in conf.warnings:
+                doc.add_paragraph(f"Note: {w}", style="List Bullet")
+
+        doc.add_page_break()
+
+    # ── 15. Conclusions and Recommendations ─────────────────────
+    _h1(doc, "15. Conclusions and Recommendations")
+
+    _h2(doc, "15.1 Viability Assessment")
     doc.add_paragraph(
         f"The {site_name} {pv_kwp:.0f} kWp solar PV mini-grid presents a "
         f"{'credible and worthwhile' if viable else 'challenging but potentially worthwhile'} "
@@ -580,7 +929,7 @@ def generate_pfs_docx(result: AnalysisResult) -> bytes:
         f"{'The desktop evidence supports advancement to full feasibility.' if viable else 'The project requires blended finance to be viable.'}"
     )
 
-    _h2(doc, "12.2 Key Findings")
+    _h2(doc, "15.2 Key Findings")
     findings = [
         f"{site_name} {'is unelectrified and has' if not cl.has_nightlight else 'has'} "
         f"{d.households} potential connections with estimated daily demand of {d.daily_energy_kwh:.0f} kWh.",
@@ -595,8 +944,8 @@ def generate_pfs_docx(result: AnalysisResult) -> bytes:
     for finding in findings:
         doc.add_paragraph(finding, style="List Bullet")
 
-    _h2(doc, "12.3 Recommended Next Steps")
-    _h3(doc, "Table 12-1: Recommended next steps")
+    _h2(doc, "15.3 Recommended Next Steps")
+    _h3(doc, "Table 15-1: Recommended next steps")
     steps_table = [
         ["Phase", "Action", "Timeline"],
         ["1", "Household and enterprise demand survey including willingness-to-pay", "Months 1–2"],
@@ -610,7 +959,7 @@ def generate_pfs_docx(result: AnalysisResult) -> bytes:
     ]
     _add_table(doc, steps_table)
 
-    _h2(doc, "12.4 Go / No-Go Recommendation")
+    _h2(doc, "15.4 Go / No-Go Recommendation")
     p = doc.add_paragraph()
     run = p.add_run(f"RECOMMENDED DECISION: {rec}")
     run.bold = True

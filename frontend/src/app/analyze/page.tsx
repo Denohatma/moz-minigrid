@@ -19,6 +19,14 @@ import {
   Upload,
   FileSpreadsheet,
   X,
+  Factory,
+  TreePine,
+  CloudRain,
+  AlertOctagon,
+  BarChart3,
+  Shield,
+  Briefcase,
+  ThermometerSun,
 } from "lucide-react";
 import Papa from "papaparse";
 import MozMap from "@/components/MozMap";
@@ -758,9 +766,9 @@ function ResultsPanel({
   site: { lat: number; lng: number };
   onBack: () => void;
 }) {
-  const [downloading, setDownloading] = useState<"pdf" | "excel" | "pfs" | null>(null);
+  const [downloading, setDownloading] = useState<"pdf" | "excel" | "pfs" | "concession" | null>(null);
 
-  const handleDownload = async (format: "pdf" | "excel" | "pfs") => {
+  const handleDownload = async (format: "pdf" | "excel" | "pfs" | "concession") => {
     setDownloading(format);
     try {
       const blob = await downloadReport(
@@ -775,7 +783,9 @@ function ResultsPanel({
           ? "moz-financial-model.xlsx"
           : format === "pfs"
             ? `${result.site.name || "site"}-PFS.docx`
-            : "moz-report.html";
+            : format === "concession"
+              ? `${result.site.name || "site"}-ARENE-concession.json`
+              : "moz-report.html";
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -793,6 +803,11 @@ function ResultsPanel({
   const sol = result.solar_resource;
   const dist = result.distribution;
   const carb = result.carbon;
+  const pue = result.productive_use;
+  const ess = result.ess;
+  const climate = result.climate;
+  const riskAn = result.risk_analysis;
+  const conf = result.confidence;
 
   const riskColor =
     gr.risk_level === "critical"
@@ -956,6 +971,169 @@ function ResultsPanel({
         </div>
       )}
 
+      {/* ── Productive Use Value Chain ───────────────────────── */}
+      {pue && pue.sectors.filter((sec) => sec.relevance === "high" || sec.relevance === "medium").length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5">
+            <Factory className="h-4 w-4 text-amber-400" />
+            Productive Use Value Chain
+          </h3>
+          <div className="rounded-md bg-slate-700/50 p-3 space-y-2">
+            <p className="text-xs text-slate-400">
+              {pue.sectors.filter((s) => s.relevance === "high").length} high-relevance,{" "}
+              {pue.sectors.filter((s) => s.relevance === "medium").length} medium-relevance sectors
+            </p>
+            {pue.sectors
+              .filter((sec) => sec.relevance === "high" || sec.relevance === "medium")
+              .slice(0, 5)
+              .map((sec) => (
+                <div key={sec.sector} className="flex items-center justify-between text-xs">
+                  <span className="text-slate-300">{sec.sector}</span>
+                  <span className={sec.relevance === "high" ? "text-emerald-400 font-medium" : "text-yellow-400"}>
+                    {sec.relevance} — {sec.estimated_demand_kwh_day.toFixed(0)} kWh/day
+                  </span>
+                </div>
+              ))}
+          </div>
+          <DataRow label="Productive Demand" value={`${pue.total_productive_demand_kwh_day.toFixed(1)} kWh/day (${pue.productive_demand_pct.toFixed(0)}%)`} />
+          {pue.anchors.length > 0 && (
+            <DataRow label="Anchor Loads" value={`${pue.anchors.length} identified (${pue.anchors.map((a) => a.type).slice(0, 3).join(", ")})`} />
+          )}
+          {pue.jobs.total != null && <DataRow label="Estimated Jobs" value={`${pue.jobs.direct || 0} direct + ${pue.jobs.indirect || 0} indirect`} />}
+          {pue.complementary_investment_usd.total != null && (
+            <DataRow label="Complementary Investment" value={`$${(pue.complementary_investment_usd.total / 1000).toFixed(0)}k`} />
+          )}
+          {pue.incremental_income_usd_year > 0 && (
+            <DataRow label="Income Uplift" value={`$${pue.incremental_income_usd_year.toFixed(0)}/HH/yr`} />
+          )}
+        </div>
+      )}
+
+      {/* ── Climate Rationale ────────────────────────────────── */}
+      {climate && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5">
+            <ThermometerSun className="h-4 w-4 text-orange-400" />
+            Climate Rationale
+          </h3>
+          <DataRow label="Lifetime Avoided" value={`${climate.lifetime_avoided_tco2e.toFixed(0)} tCO2e`} />
+          <DataRow label="Per Capita" value={`${climate.per_capita_reduction_tco2e.toFixed(2)} tCO2e/person`} />
+          <DataRow label="Overall Hazard" value={climate.overall_hazard_level.replace("_", " ")} />
+          {climate.hazards.filter((h) => h.level === "very_high" || h.level === "high").length > 0 && (
+            <div className="rounded-md bg-slate-700/50 p-3 space-y-1">
+              <p className="text-xs text-slate-400 font-medium">High-Risk Hazards</p>
+              {climate.hazards
+                .filter((h) => h.level === "very_high" || h.level === "high")
+                .map((h) => (
+                  <div key={h.hazard} className="flex items-center justify-between text-xs">
+                    <span className="text-slate-300 capitalize">{h.hazard.replace("_", " ")}</span>
+                    <span className={h.level === "very_high" ? "text-red-400 font-medium" : "text-orange-400"}>
+                      {h.level.replace("_", " ")}
+                    </span>
+                  </div>
+                ))}
+            </div>
+          )}
+          {climate.climate_finance_score && (
+            <DataRow label="Climate Finance" value={`${climate.climate_finance_score} potential ($${(climate.total_climate_finance_potential_usd / 1000).toFixed(0)}k)`} />
+          )}
+        </div>
+      )}
+
+      {/* ── ESS Screening ────────────────────────────────────── */}
+      {ess && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5">
+            <TreePine className="h-4 w-4 text-green-400" />
+            Environmental & Social
+          </h3>
+          <DataRow label="ESIA Category" value={`Category ${ess.esia_category}`} />
+          <DataRow label="Biodiversity" value={ess.biodiversity_sensitivity} />
+          <DataRow label="Resettlement Risk" value={ess.resettlement_risk} />
+          <DataRow label="Overall ESS Risk" value={ess.overall_ess_risk} />
+          {ess.gesi_considerations.length > 0 && (
+            <div className="rounded-md bg-slate-700/50 p-3">
+              <p className="text-xs text-slate-400 font-medium mb-1">GESI Considerations</p>
+              <ul className="text-xs text-slate-300 space-y-0.5">
+                {ess.gesi_considerations.slice(0, 3).map((g, i) => (
+                  <li key={i}>• {g}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Risk Analysis ────────────────────────────────────── */}
+      {riskAn && (
+        <div className="space-y-2">
+          <h3 className={`text-sm font-medium flex items-center gap-1.5 ${
+            riskAn.overall_risk_level === "critical" ? "text-red-400" :
+            riskAn.overall_risk_level === "high" ? "text-orange-400" :
+            riskAn.overall_risk_level === "medium" ? "text-yellow-400" : "text-emerald-400"
+          }`}>
+            <AlertOctagon className="h-4 w-4" />
+            Risk Assessment: {riskAn.overall_risk_level.charAt(0).toUpperCase() + riskAn.overall_risk_level.slice(1)}
+          </h3>
+          <DataRow label="Risk Score" value={`${riskAn.overall_risk_score.toFixed(1)} / 25`} />
+          {riskAn.top_risks.slice(0, 3).map((risk, i) => (
+            <div key={i} className="rounded-md bg-slate-700/50 px-3 py-2">
+              <span className="text-xs text-slate-300">{i + 1}. {risk}</span>
+            </div>
+          ))}
+          {riskAn.mitigation_investment_usd > 0 && (
+            <DataRow label="Mitigation Cost" value={`$${(riskAn.mitigation_investment_usd / 1000).toFixed(0)}k`} />
+          )}
+        </div>
+      )}
+
+      {/* ── Confidence Scoring ───────────────────────────────── */}
+      {conf && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5">
+            <BarChart3 className="h-4 w-4 text-indigo-400" />
+            Data Confidence
+          </h3>
+          <div className="rounded-md bg-slate-700/50 p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-slate-400">Overall Confidence</span>
+              <span className={`text-sm font-bold ${
+                conf.overall_confidence_level === "high" ? "text-emerald-400" :
+                conf.overall_confidence_level === "medium" ? "text-yellow-400" : "text-red-400"
+              }`}>
+                {conf.overall_confidence_score}%
+              </span>
+            </div>
+            <div className="w-full bg-slate-600 rounded-full h-2">
+              <div
+                className={`h-2 rounded-full ${
+                  conf.overall_confidence_score >= 75 ? "bg-emerald-400" :
+                  conf.overall_confidence_score >= 50 ? "bg-yellow-400" : "bg-red-400"
+                }`}
+                style={{ width: `${conf.overall_confidence_score}%` }}
+              />
+            </div>
+          </div>
+          <DataRow label="Data Completeness" value={`${conf.data_completeness_pct.toFixed(0)}%`} />
+          {conf.dimensions.slice(0, 4).map((dim) => (
+            <div key={dim.dimension} className="flex items-center justify-between rounded-md bg-slate-700/50 px-3 py-1.5">
+              <span className="text-xs text-slate-400 truncate max-w-[55%]">{dim.dimension}</span>
+              <span className="text-xs text-slate-300">±{dim.margin_of_error_pct.toFixed(0)}% ({dim.data_quality})</span>
+            </div>
+          ))}
+          {conf.recommendations.length > 0 && (
+            <div className="rounded-md bg-slate-700/50 p-3">
+              <p className="text-xs text-slate-400 font-medium mb-1">To Improve Accuracy</p>
+              <ul className="text-xs text-slate-300 space-y-0.5">
+                {conf.recommendations.slice(0, 2).map((rec, i) => (
+                  <li key={i}>• {rec}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="space-y-2">
         <h3 className="text-sm font-medium text-slate-300">CAPEX Breakdown</h3>
         <CapexBar breakdown={f.capex_breakdown} total={f.total_capex_usd} />
@@ -985,6 +1163,13 @@ function ResultsPanel({
             {downloading === "excel" ? "Generating..." : "Excel"}
           </button>
         </div>
+        <button
+          onClick={() => handleDownload("concession")}
+          disabled={downloading === "concession"}
+          className="w-full rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-amber-500 disabled:opacity-50 transition"
+        >
+          {downloading === "concession" ? "Generating..." : "ARENE Concession Data Sheet (JSON)"}
+        </button>
         <button
           onClick={onBack}
           className="w-full rounded-lg bg-slate-700 px-4 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-600 transition"

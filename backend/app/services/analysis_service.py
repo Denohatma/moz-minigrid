@@ -12,6 +12,12 @@ from app.engines.distribution_engine import design_distribution
 from app.engines.carbon_engine import assess_carbon
 from app.engines.financial_engine import run_financial_model
 from app.engines.grid_risk_engine import assess_grid_risk
+from app.engines.productive_use_engine import analyze_productive_use
+from app.engines.ess_engine import screen_ess
+from app.engines.climate_engine import assess_climate_rationale
+from app.engines.risk_engine import analyze_risks
+from app.engines.confidence_engine import score_confidence
+from app.engines.concession_engine import generate_concession_data
 
 
 def run_full_analysis(
@@ -31,6 +37,12 @@ def run_full_analysis(
       6. Carbon assessment (emission reductions + credit revenue)
       7. Financial model (25-year DCF with granular CAPEX/OPEX)
       8. Grid risk assessment (ESMAP scenario scoring)
+      9. Productive use value chain analysis
+     10. Environmental & social safeguards screening
+     11. Climate rationale (hazards + adaptation + finance)
+     12. Comprehensive risk analysis (8 categories)
+     13. Confidence scoring (10 output dimensions)
+     14. ARENE concession data sheet generation
     """
     overrides = overrides or {}
 
@@ -59,7 +71,29 @@ def run_full_analysis(
 
     grid_risk = assess_grid_risk(cluster, financial)
 
-    return AnalysisResult(
+    # ── New TOR-required engines ──────────────────────────────────
+    productive_use = _safe_call(
+        analyze_productive_use, cluster, demand
+    )
+
+    ess = _safe_call(
+        screen_ess, cluster, sizing, latitude, longitude
+    )
+
+    climate = _safe_call(
+        assess_climate_rationale,
+        latitude, longitude, cluster, carbon, sizing, annual_served,
+    )
+
+    risk_analysis = _safe_call(
+        analyze_risks, cluster, financial, sizing, grid_risk, demand
+    )
+
+    confidence = _safe_call(
+        score_confidence, cluster, demand, sizing, financial, carbon, solar_resource
+    )
+
+    result = AnalysisResult(
         site=site,
         cluster=cluster,
         screening=screening,
@@ -70,4 +104,26 @@ def run_full_analysis(
         solar_resource=solar_resource,
         distribution=distribution,
         carbon=carbon,
+        climate=climate,
+        productive_use=productive_use,
+        ess=ess,
+        risk_analysis=risk_analysis,
+        confidence=confidence,
+        concession=None,
     )
+
+    # Generate concession data sheet with full result
+    concession = _safe_call(
+        generate_concession_data,
+        result, productive_use, ess, climate, risk_analysis, confidence,
+    )
+    result.concession = concession
+
+    return result
+
+
+def _safe_call(fn, *args, **kwargs):
+    try:
+        return fn(*args, **kwargs)
+    except Exception:
+        return None

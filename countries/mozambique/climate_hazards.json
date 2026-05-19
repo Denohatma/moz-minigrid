@@ -1,0 +1,37 @@
+{
+  "cyclone": {
+    "very_high_zones": [
+      {"description": "Central coast (Sofala/Zambezia)", "lat_range": [-20.5, -15.0], "lon_min": 34.0, "max_distance_coast_km": 100}
+    ],
+    "high_zones": [
+      {"description": "Northern coast", "lat_range": [-15.0, -10.5], "lon_min": 38.0, "max_distance_coast_km": 100},
+      {"description": "Southern coast", "lat_range": [-26.0, -20.5], "lon_min": 33.0, "max_distance_coast_km": 80}
+    ],
+    "design_measures": ["Cyclone-rated PV mounting (wind zone III)", "Underground LV cabling", "Reinforced battery enclosure", "Elevated control room"]
+  },
+  "flood": {
+    "high_zones": [
+      {"description": "Zambezi basin", "lat_range": [-18.5, -15.5], "lon_range": [33.0, 36.5]},
+      {"description": "Limpopo basin", "lat_range": [-25.0, -22.0], "lon_range": [31.0, 34.0]},
+      {"description": "Save basin", "lat_range": [-22.0, -19.0], "lon_range": [33.0, 35.5]},
+      {"description": "Coastal lowlands <50m elevation", "max_elevation_m": 50, "max_distance_coast_km": 50}
+    ],
+    "design_measures": ["Elevated foundations (min 1m above flood level)", "Waterproof battery enclosure", "Flood-resistant cable routing", "Emergency disconnect system"]
+  },
+  "drought": {
+    "high_zones": [
+      {"description": "Gaza province", "lat_range": [-25.0, -21.5], "lon_range": [31.0, 35.0]},
+      {"description": "Southern Inhambane", "lat_range": [-24.5, -21.5], "lon_range": [33.5, 35.5]}
+    ],
+    "design_measures": ["Water-efficient PV cleaning systems", "Dust-resistant equipment enclosures"]
+  },
+  "ndc_targets": {
+    "unconditional_reduction_pct": 10,
+    "conditional_reduction_pct": 40,
+    "base_year": 2005,
+    "target_year": 2030,
+    "energy_sector_target": "Increase renewable energy share to 23% of total energy matrix"
+  },
+  "mozambique_coast_longitude": 35.0,
+  "coast_buffer_km": 100
+}

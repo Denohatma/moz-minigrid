@@ -18,5 +18,34 @@
     "lat_max": -10.47,
     "lon_min": 30.21,
     "lon_max": 40.84
+  },
+
+  "concession_term_years_min": 15,
+  "concession_term_years_max": 25,
+  "arene_framework": "Normative Resolutions 1-3/2022",
+  "esia_decree": "Decree 54/2015",
+
+  "margin_of_error_targets": {
+    "demand_estimation_pct": 15,
+    "solar_resource_pct": 8,
+    "capex_pct": 10,
+    "opex_pct": 12,
+    "distribution_cost_pct": 15,
+    "tariff_revenue_pct": 10,
+    "connection_rate_pct": 15,
+    "load_growth_pct": 20,
+    "battery_sizing_pct": 10,
+    "lcoe_pct": 12
+  },
+
+  "performance_standards": {
+    "saidi_hours_per_year_max": 50,
+    "saifi_events_per_year_max": 25,
+    "voltage_band_pct": 10,
+    "target_availability_pct": 97,
+    "max_outage_duration_hours": 4,
+    "connection_target_year1_pct": 60,
+    "connection_target_year5_pct": 90,
+    "min_hours_supply_per_day": 22
   }
 }
