@@ -441,6 +441,49 @@ export interface AnalysisResult {
   concession?: ConcessionDataSheet;
 }
 
+// ── Priority Sites ──────────────────────────────────────────────
+
+export interface PrioritySite {
+  id: string;
+  name: string;
+  province: string;
+  district: string;
+  latitude: number;
+  longitude: number;
+  population: number;
+  num_buildings: number;
+  num_connections: number;
+  demand_kwh_day: number;
+  dist_grid_km: number;
+  dist_road_km: number;
+  has_education: boolean;
+  has_health: boolean;
+  pv_potential: number;
+  security_risk: string;
+  ag_area_ha: number;
+  mean_rwi: number;
+  score: number;
+  is_priority_province: boolean;
+}
+
+export interface PrioritySitesResponse {
+  total: number;
+  sites: PrioritySite[];
+  provinces: string[];
+}
+
+export async function fetchPrioritySites(
+  province?: string,
+  minScore?: number
+): Promise<PrioritySitesResponse> {
+  const params = new URLSearchParams();
+  if (province) params.set("province", province);
+  if (minScore) params.set("min_score", String(minScore));
+  const res = await fetch(`${API_BASE}/api/sites/priority?${params}`);
+  if (!res.ok) throw new Error("Failed to load priority sites");
+  return res.json();
+}
+
 export async function analyzeSite(
   coords: SiteCoordinates,
   overrides?: Record<string, unknown>

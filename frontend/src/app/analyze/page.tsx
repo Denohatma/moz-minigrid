@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import Link from "next/link";
 import {
   Zap,
@@ -27,11 +27,15 @@ import {
   Shield,
   Briefcase,
   ThermometerSun,
+  List,
+  Search,
+  Star,
+  Users,
 } from "lucide-react";
 import Papa from "papaparse";
 import MozMap from "@/components/MozMap";
-import { analyzeSite, lookupCluster, downloadReport } from "@/lib/api";
-import type { AnalysisResult, ClusterInfo } from "@/lib/api";
+import { analyzeSite, lookupCluster, downloadReport, fetchPrioritySites } from "@/lib/api";
+import type { AnalysisResult, ClusterInfo, PrioritySite } from "@/lib/api";
 
 interface ParsedSite {
   name?: string;
@@ -40,7 +44,7 @@ interface ParsedSite {
   row: number;
 }
 
-type InputMode = "coordinates" | "upload";
+type InputMode = "coordinates" | "upload" | "priority";
 
 type WizardStep = "select" | "review" | "parameters" | "results";
 
@@ -380,7 +384,7 @@ function SiteSelectPanel({
           Select Site
         </h2>
         <p className="mt-1 text-sm text-slate-400">
-          Click the map, enter coordinates, or upload a file with site data.
+          Click the map, enter coordinates, upload a file, or pick a priority site.
         </p>
       </div>
 
@@ -406,6 +410,17 @@ function SiteSelectPanel({
         >
           <Upload className="h-3.5 w-3.5" />
           Upload File
+        </button>
+        <button
+          onClick={() => onInputModeChange("priority")}
+          className={`flex-1 flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium transition ${
+            inputMode === "priority"
+              ? "bg-slate-600 text-white"
+              : "text-slate-400 hover:text-slate-300"
+          }`}
+        >
+          <Star className="h-3.5 w-3.5" />
+          Priority Sites
         </button>
       </div>
 
@@ -522,6 +537,17 @@ function SiteSelectPanel({
             </div>
           )}
         </div>
+      )}
+
+      {inputMode === "priority" && (
+        <PrioritySitesPanel
+          onSelectSite={(site) => {
+            onLatChange(site.latitude.toFixed(6));
+            onLngChange(site.longitude.toFixed(6));
+            onError(null);
+          }}
+          onError={onError}
+        />
       )}
 
       {error && (
@@ -1239,6 +1265,139 @@ function MetricCard({ label, value }: { label: string; value: string }) {
     <div className="rounded-lg bg-slate-700/50 border border-slate-600/50 p-3">
       <p className="text-xs text-slate-400">{label}</p>
       <p className="text-lg font-bold text-emerald-400">{value}</p>
+    </div>
+  );
+}
+
+function PrioritySitesPanel({
+  onSelectSite,
+  onError,
+}: {
+  onSelectSite: (site: PrioritySite) => void;
+  onError: (msg: string | null) => void;
+}) {
+  const [sites, setSites] = useState<PrioritySite[]>([]);
+  const [provinces, setProvinces] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [province, setProvince] = useState<string>("");
+  const [search, setSearch] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (loaded) return;
+    setLoading(true);
+    onError(null);
+    fetchPrioritySites()
+      .then((res) => {
+        setSites(res.sites);
+        setProvinces(res.provinces);
+        setLoaded(true);
+      })
+      .catch(() => {
+        onError("Failed to load priority sites");
+      })
+      .finally(() => setLoading(false));
+  }, [loaded, onError]);
+
+  const filtered = sites.filter((s) => {
+    if (province && s.province !== province) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      return (
+        s.name.toLowerCase().includes(q) ||
+        s.district.toLowerCase().includes(q) ||
+        s.id.toLowerCase().includes(q)
+      );
+    }
+    return true;
+  });
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8 gap-2 text-slate-400 text-sm">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Loading priority sites...
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-2">
+        <div className="flex-1 relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name or district..."
+            className="w-full rounded-md bg-slate-700 border border-slate-600 pl-8 pr-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+          />
+        </div>
+        <select
+          value={province}
+          onChange={(e) => setProvince(e.target.value)}
+          className="rounded-md bg-slate-700 border border-slate-600 px-2 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+        >
+          <option value="">All provinces</option>
+          {provinces.map((p) => (
+            <option key={p} value={p}>
+              {p}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <p className="text-xs text-slate-500">
+        {filtered.length} site{filtered.length !== 1 ? "s" : ""} found
+        {province ? ` in ${province}` : ""}
+      </p>
+
+      <div className="space-y-1 max-h-72 overflow-y-auto rounded-md">
+        {filtered.map((site) => (
+          <button
+            key={site.id}
+            onClick={() => {
+              setSelectedId(site.id);
+              onSelectSite(site);
+            }}
+            className={`w-full rounded-md px-3 py-2.5 text-left transition ${
+              selectedId === site.id
+                ? "bg-emerald-500/20 border border-emerald-500/30"
+                : "bg-slate-700/50 hover:bg-slate-700 border border-transparent"
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-white truncate">
+                {site.name}
+              </span>
+              <span className="flex items-center gap-1 text-xs font-semibold text-amber-400 shrink-0 ml-2">
+                <Star className="h-3 w-3" />
+                {site.score.toFixed(1)}
+              </span>
+            </div>
+            <div className="flex items-center gap-3 mt-1 text-xs text-slate-400">
+              <span>{site.province}, {site.district}</span>
+            </div>
+            <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
+              <span className="flex items-center gap-1">
+                <Users className="h-3 w-3" />
+                {site.population.toLocaleString()}
+              </span>
+              <span>{site.demand_kwh_day.toFixed(0)} kWh/day</span>
+              <span>{site.dist_grid_km.toFixed(1)} km to grid</span>
+              {site.has_health && <span className="text-emerald-500">Health</span>}
+              {site.has_education && <span className="text-blue-400">Edu</span>}
+            </div>
+          </button>
+        ))}
+        {filtered.length === 0 && (
+          <div className="text-center py-6 text-sm text-slate-500">
+            No sites match your filters
+          </div>
+        )}
+      </div>
     </div>
   );
 }
