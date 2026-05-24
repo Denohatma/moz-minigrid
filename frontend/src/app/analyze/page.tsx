@@ -46,7 +46,7 @@ interface ParsedSite {
 
 type InputMode = "coordinates" | "upload" | "priority";
 
-type WizardStep = "select" | "review" | "parameters" | "results";
+type WizardStep = "select" | "review" | "design" | "optimize" | "report";
 
 export default function AnalyzePage() {
   const [step, setStep] = useState<WizardStep>("select");
@@ -126,7 +126,29 @@ export default function AnalyzePage() {
         Object.keys(parsedOverrides).length > 0 ? parsedOverrides : undefined
       );
       setResult(data);
-      setStep("results");
+      setStep("design");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Analysis failed");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const handleRecalculate = async () => {
+    if (!selectedSite) return;
+    setIsAnalyzing(true);
+    setError(null);
+    const parsedOverrides: Record<string, number> = {};
+    for (const [k, v] of Object.entries(overrides)) {
+      const num = parseFloat(v);
+      if (!isNaN(num)) parsedOverrides[k] = num;
+    }
+    try {
+      const data = await analyzeSite(
+        { latitude: selectedSite.lat, longitude: selectedSite.lng },
+        Object.keys(parsedOverrides).length > 0 ? parsedOverrides : undefined
+      );
+      setResult(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Analysis failed");
     } finally {
@@ -180,25 +202,30 @@ export default function AnalyzePage() {
               site={selectedSite}
               cluster={cluster}
               onBack={() => setStep("select")}
-              onProceed={() => setStep("parameters")}
-            />
-          )}
-
-          {step === "parameters" && (
-            <ParametersPanel
-              overrides={overrides}
-              onOverrideChange={(key, val) =>
-                setOverrides((prev) => ({ ...prev, [key]: val }))
-              }
-              onBack={() => setStep("review")}
-              onAnalyze={handleAnalyze}
+              onProceed={handleAnalyze}
               isAnalyzing={isAnalyzing}
-              error={error}
             />
           )}
 
-          {step === "results" && result && selectedSite && (
-            <ResultsPanel result={result} site={selectedSite} onBack={() => setStep("parameters")} />
+          {step === "design" && result && (
+            <DesignPanel result={result} onBack={() => setStep("review")} onNext={() => setStep("optimize")} />
+          )}
+
+          {step === "optimize" && result && selectedSite && (
+            <OptimizePanel
+              result={result}
+              site={selectedSite}
+              overrides={overrides}
+              onOverrideChange={(key, val) => setOverrides(prev => ({ ...prev, [key]: val }))}
+              onRecalculate={handleRecalculate}
+              isRecalculating={isAnalyzing}
+              onBack={() => setStep("design")}
+              onNext={() => setStep("report")}
+            />
+          )}
+
+          {step === "report" && result && selectedSite && (
+            <ReportPanel result={result} site={selectedSite} onBack={() => setStep("optimize")} />
           )}
         </div>
       </div>
@@ -209,9 +236,10 @@ export default function AnalyzePage() {
 function StepIndicator({ current }: { current: WizardStep }) {
   const steps: { key: WizardStep; label: string }[] = [
     { key: "select", label: "Select Site" },
-    { key: "review", label: "Review Data" },
-    { key: "parameters", label: "Parameters" },
-    { key: "results", label: "Results" },
+    { key: "review", label: "Review" },
+    { key: "design", label: "Design" },
+    { key: "optimize", label: "Optimize" },
+    { key: "report", label: "Report" },
   ];
   const currentIdx = steps.findIndex((s) => s.key === current);
 
@@ -591,11 +619,13 @@ function ReviewPanel({
   cluster,
   onBack,
   onProceed,
+  isAnalyzing,
 }: {
   site: { lat: number; lng: number };
   cluster: ClusterInfo | null;
   onBack: () => void;
   onProceed: () => void;
+  isAnalyzing?: boolean;
 }) {
   const urbanLabel = cluster
     ? cluster.is_urban === 2
@@ -681,11 +711,20 @@ function ReviewPanel({
         </button>
         <button
           onClick={onProceed}
-          disabled={!cluster}
+          disabled={!cluster || isAnalyzing}
           className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-400 disabled:opacity-50 transition"
         >
-          Continue
-          <ArrowRight className="h-4 w-4" />
+          {isAnalyzing ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Analyzing...
+            </>
+          ) : (
+            <>
+              Design System
+              <ArrowRight className="h-4 w-4" />
+            </>
+          )}
         </button>
       </div>
     </div>
@@ -696,94 +735,259 @@ function SectionHeader({ label }: { label: string }) {
   return <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 pt-1">{label}</h3>;
 }
 
-const PARAM_FIELDS: { key: string; label: string; defaultValue: string }[] = [
-  { key: "discount_rate", label: "Discount rate", defaultValue: "0.10" },
-  { key: "cost_pv_per_kwp", label: "PV cost ($/kWp)", defaultValue: "1100" },
-  { key: "cost_battery_per_kwh", label: "Battery cost ($/kWh)", defaultValue: "450" },
-  { key: "affordable_tariff", label: "Target tariff ($/kWh)", defaultValue: "0.35" },
-  { key: "demand_growth_rate", label: "Demand growth (%/yr)", defaultValue: "0.03" },
-  { key: "days_of_autonomy", label: "Days of autonomy", defaultValue: "1.5" },
-  { key: "om_rate", label: "O&M rate (% CAPEX)", defaultValue: "0.03" },
-];
+/* ── DesignPanel ──────────────────────────────────────────── */
 
-function ParametersPanel({
-  overrides,
-  onOverrideChange,
+function DesignPanel({
+  result,
   onBack,
-  onAnalyze,
-  isAnalyzing,
-  error,
+  onNext,
 }: {
-  overrides: Record<string, string>;
-  onOverrideChange: (key: string, value: string) => void;
+  result: AnalysisResult;
   onBack: () => void;
-  onAnalyze: () => void;
-  isAnalyzing: boolean;
-  error: string | null;
+  onNext: () => void;
 }) {
+  const s = result.sizing;
+  const d = result.demand;
+  const sol = result.solar_resource;
+  const dist = result.distribution;
+  const gr = result.grid_risk;
+
+  const riskColor = gr.risk_level === "critical" ? "text-red-400" : gr.risk_level === "high" ? "text-orange-400" : gr.risk_level === "medium" ? "text-yellow-400" : "text-emerald-400";
+
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 text-white overflow-y-auto">
       <div>
-        <h2 className="text-lg font-semibold text-white">Financial Parameters</h2>
+        <h2 className="text-lg font-semibold">System Design</h2>
         <p className="mt-1 text-sm text-slate-400">
-          Adjust assumptions or use Mozambique defaults.
+          Mini-grid and distribution network design for {d.households} households.
         </p>
       </div>
 
-      <div className="space-y-4">
-        {PARAM_FIELDS.map((p) => (
-          <div key={p.key}>
-            <label className="block text-xs font-medium text-slate-400 mb-1">
-              {p.label}
-            </label>
-            <input
-              type="text"
-              value={overrides[p.key] ?? p.defaultValue}
-              onChange={(e) => onOverrideChange(p.key, e.target.value)}
-              className="w-full rounded-md bg-slate-700 border border-slate-600 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
-            />
-          </div>
-        ))}
+      {/* Demand Summary */}
+      <div className="grid grid-cols-2 gap-3">
+        <MetricCard label="Households" value={`${d.households}`} />
+        <MetricCard label="Demand Tier" value={`Tier ${d.demand_tier}`} />
+        <MetricCard label="Daily Demand" value={`${d.daily_energy_kwh.toFixed(0)} kWh`} />
+        <MetricCard label="Peak Load" value={`${d.peak_demand_kw.toFixed(1)} kW`} />
       </div>
 
-      {error && (
-        <div className="flex items-start gap-2 rounded-md bg-red-500/10 border border-red-500/20 p-3">
-          <AlertTriangle className="h-4 w-4 text-red-400 mt-0.5 shrink-0" />
-          <p className="text-sm text-red-300">{error}</p>
+      {/* Solar Resource */}
+      {sol && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5">
+            <Sun className="h-4 w-4 text-yellow-400" />
+            Solar Resource
+          </h3>
+          <DataRow label="Annual GHI" value={`${sol.annual_ghi_kwh_m2.toFixed(0)} kWh/m²/yr`} />
+          <DataRow label="Specific Yield" value={`${sol.specific_yield_kwh_per_kwp.toFixed(0)} kWh/kWp`} />
+          <DataRow label="Performance Ratio" value={`${(sol.performance_ratio * 100).toFixed(1)}%`} />
+          <DataRow label="Data Source" value={sol.data_source} />
         </div>
       )}
 
+      {/* System Sizing */}
+      <div className="space-y-2">
+        <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5">
+          <Battery className="h-4 w-4 text-blue-400" />
+          Generation System
+        </h3>
+        <DataRow label="PV Array" value={`${s.pv_kwp.toFixed(1)} kWp`} />
+        <DataRow label="Battery" value={`${s.battery_kwh_nominal.toFixed(0)} kWh (${s.battery_kwh_usable.toFixed(0)} usable)`} />
+        <DataRow label="Inverter" value={`${s.inverter_kva.toFixed(1)} kVA`} />
+        {s.dc_ac_ratio != null && <DataRow label="DC/AC Ratio" value={s.dc_ac_ratio.toFixed(2)} />}
+      </div>
+
+      {/* Dispatch */}
+      {s.annual_generation_kwh != null && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5">
+            <Zap className="h-4 w-4 text-amber-400" />
+            Dispatch Simulation
+          </h3>
+          <DataRow label="Annual Generation" value={`${(s.annual_generation_kwh / 1000).toFixed(1)} MWh`} />
+          {s.annual_energy_served_kwh != null && <DataRow label="Energy Served" value={`${(s.annual_energy_served_kwh / 1000).toFixed(1)} MWh`} />}
+          {s.unmet_energy_pct != null && <DataRow label="Unmet Energy" value={`${s.unmet_energy_pct.toFixed(1)}%`} />}
+          {s.curtailment_pct != null && <DataRow label="Curtailment" value={`${s.curtailment_pct.toFixed(1)}%`} />}
+          {s.capacity_factor_pct != null && <DataRow label="Capacity Factor" value={`${s.capacity_factor_pct.toFixed(1)}%`} />}
+          {s.battery_cycles_per_year != null && <DataRow label="Battery Cycles/yr" value={`${s.battery_cycles_per_year.toFixed(0)}`} />}
+        </div>
+      )}
+
+      {/* Distribution */}
+      {dist && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5">
+            <Network className="h-4 w-4 text-cyan-400" />
+            Distribution Network
+          </h3>
+          <DataRow label="Line Length" value={`${dist.total_line_length_m.toFixed(0)} m`} />
+          <DataRow label="Poles" value={`${dist.pole_count}`} />
+          <DataRow label="Customers" value={`${dist.customers_connected}`} />
+          <DataRow label="Network Cost" value={`$${(dist.total_network_cost_usd / 1000).toFixed(1)}k`} />
+          <DataRow label="Cost/Connection" value={`$${dist.cost_per_connection_usd.toFixed(0)}`} />
+          <DataRow label="Voltage Drop" value={`${dist.voltage_drop_max_pct.toFixed(1)}%`} />
+          <DataRow label="Technical Losses" value={`${dist.technical_losses_pct.toFixed(1)}%`} />
+        </div>
+      )}
+
+      {/* Grid Risk */}
+      <div className="space-y-2">
+        <h3 className={`text-sm font-medium flex items-center gap-1.5 ${riskColor}`}>
+          <ShieldAlert className="h-4 w-4" />
+          Grid Risk: {gr.risk_level.charAt(0).toUpperCase() + gr.risk_level.slice(1)}
+        </h3>
+        <DataRow label="Nearest MV" value={`${gr.dist_mv_km.toFixed(1)} km`} />
+        <DataRow label="Nearest HV" value={`${gr.dist_hv_km.toFixed(1)} km`} />
+        <DataRow label="Assessment" value={gr.risk_label} />
+        {gr.esmap_recommended && <DataRow label="ESMAP Strategy" value={gr.esmap_recommended} />}
+      </div>
+
+      {/* Nav */}
       <div className="flex gap-3">
-        <button
-          onClick={onBack}
-          className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-slate-700 px-4 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-600 transition"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back
+        <button onClick={onBack} className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-slate-700 px-4 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-600 transition">
+          <ArrowLeft className="h-4 w-4" /> Back
         </button>
-        <button
-          onClick={onAnalyze}
-          disabled={isAnalyzing}
-          className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-400 disabled:opacity-50 transition"
-        >
-          {isAnalyzing ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Analyzing...
-            </>
-          ) : (
-            <>
-              Run Analysis
-              <ArrowRight className="h-4 w-4" />
-            </>
-          )}
+        <button onClick={onNext} className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-400 transition">
+          Optimize Costs <ArrowRight className="h-4 w-4" />
         </button>
       </div>
     </div>
   );
 }
 
-function ResultsPanel({
+/* ── OptimizePanel ───────────────────────────────────────── */
+
+const COST_FIELDS: { key: string; label: string; defaultValue: string; group: string }[] = [
+  { key: "pv_modules_usd_per_kwp", label: "PV modules ($/kWp)", defaultValue: "580", group: "Equipment" },
+  { key: "battery_ems_usd_per_kwh", label: "Battery + EMS ($/kWh)", defaultValue: "285", group: "Equipment" },
+  { key: "inverters_usd_per_kwac", label: "Inverters ($/kVA)", defaultValue: "420", group: "Equipment" },
+  { key: "mounting_usd_per_kwp", label: "Mounting ($/kWp)", defaultValue: "180", group: "Equipment" },
+  { key: "bos_usd_per_kwp", label: "BOS ($/kWp)", defaultValue: "220", group: "Equipment" },
+  { key: "civil_works_fixed_usd", label: "Civil works ($)", defaultValue: "18000", group: "Equipment" },
+  { key: "discount_rate", label: "Discount rate", defaultValue: "0.10", group: "Financial" },
+  { key: "grant_pct", label: "Grant %", defaultValue: "0.40", group: "Financial" },
+  { key: "debt_pct", label: "Debt %", defaultValue: "0.35", group: "Financial" },
+  { key: "affordable_tariff", label: "Target tariff ($/kWh)", defaultValue: "0.45", group: "Financial" },
+];
+
+function OptimizePanel({
+  result,
+  site,
+  overrides,
+  onOverrideChange,
+  onRecalculate,
+  isRecalculating,
+  onBack,
+  onNext,
+}: {
+  result: AnalysisResult;
+  site: { lat: number; lng: number };
+  overrides: Record<string, string>;
+  onOverrideChange: (key: string, value: string) => void;
+  onRecalculate: () => void;
+  isRecalculating: boolean;
+  onBack: () => void;
+  onNext: () => void;
+}) {
+  const f = result.financial;
+
+  const groups = ["Equipment", "Financial"];
+
+  return (
+    <div className="p-6 space-y-6 text-white overflow-y-auto">
+      <div>
+        <h2 className="text-lg font-semibold">Optimize Costs</h2>
+        <p className="mt-1 text-sm text-slate-400">
+          Adjust equipment prices and financial parameters, then recalculate.
+        </p>
+      </div>
+
+      {/* Key financial metrics */}
+      <div className="grid grid-cols-2 gap-3">
+        <MetricCard label="Total CAPEX" value={`$${(f.total_capex_usd / 1000).toFixed(0)}k`} />
+        <MetricCard label="LCOE" value={`$${f.lcoe_usd_kwh.toFixed(2)}/kWh`} />
+        <MetricCard label="Project IRR" value={`${f.irr_pct.toFixed(1)}%`} />
+        <MetricCard label="NPV" value={`$${(f.npv_usd / 1000).toFixed(0)}k`} />
+        <MetricCard label="Payback" value={`${f.payback_years.toFixed(1)} yrs`} />
+        <MetricCard label="Min DSCR" value={f.dscr.toFixed(2)} />
+        {f.equity_irr_pct != null && <MetricCard label="Equity IRR" value={`${f.equity_irr_pct.toFixed(1)}%`} />}
+        {f.capex_per_wp != null && <MetricCard label="CAPEX/Wp" value={`$${f.capex_per_wp.toFixed(2)}`} />}
+      </div>
+
+      {/* CAPEX breakdown bar */}
+      <div className="space-y-2">
+        <h3 className="text-sm font-medium text-slate-300">CAPEX Breakdown</h3>
+        <CapexBar breakdown={f.capex_breakdown} total={f.total_capex_usd} />
+      </div>
+
+      {/* Financial Structure */}
+      <div className="space-y-2">
+        <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5">
+          <DollarSign className="h-4 w-4 text-emerald-400" />
+          Financial Structure
+        </h3>
+        <DataRow label="Cost-reflective tariff" value={`$${f.cost_reflective_tariff_usd.toFixed(3)}/kWh`} />
+        <DataRow label="Affordable tariff" value={`$${f.affordable_tariff_usd.toFixed(3)}/kWh`} />
+        {f.grant_amount_usd != null && <DataRow label="Grant / Subsidy" value={`$${(f.grant_amount_usd / 1000).toFixed(0)}k`} />}
+        {f.debt_amount_usd != null && <DataRow label="Concessional Debt" value={`$${(f.debt_amount_usd / 1000).toFixed(0)}k`} />}
+        {f.equity_amount_usd != null && <DataRow label="Developer Equity" value={`$${(f.equity_amount_usd / 1000).toFixed(0)}k`} />}
+        {f.annual_opex_usd != null && <DataRow label="Annual OPEX" value={`$${(f.annual_opex_usd / 1000).toFixed(1)}k`} />}
+        <DataRow label="Subsidy gap" value={`$${f.subsidy_gap_per_connection_usd.toFixed(0)}/conn (${f.subsidy_gap_pct_capex.toFixed(0)}% CAPEX)`} />
+      </div>
+
+      {/* Editable cost inputs grouped */}
+      {groups.map((group) => (
+        <div key={group} className="space-y-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">{group} Inputs</h3>
+          {COST_FIELDS.filter((cf) => cf.group === group).map((p) => (
+            <div key={p.key} className="flex items-center gap-2">
+              <label className="text-xs text-slate-400 w-[55%] shrink-0">{p.label}</label>
+              <input
+                type="text"
+                value={overrides[p.key] ?? p.defaultValue}
+                onChange={(e) => onOverrideChange(p.key, e.target.value)}
+                className="flex-1 rounded-md bg-slate-700 border border-slate-600 px-2 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              />
+            </div>
+          ))}
+        </div>
+      ))}
+
+      {/* Recalculate button */}
+      <button
+        onClick={onRecalculate}
+        disabled={isRecalculating}
+        className="w-full flex items-center justify-center gap-2 rounded-lg bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-amber-400 disabled:opacity-50 transition"
+      >
+        {isRecalculating ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Recalculating...
+          </>
+        ) : (
+          <>
+            <Zap className="h-4 w-4" />
+            Recalculate
+          </>
+        )}
+      </button>
+
+      {/* Nav */}
+      <div className="flex gap-3">
+        <button onClick={onBack} className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-slate-700 px-4 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-600 transition">
+          <ArrowLeft className="h-4 w-4" /> Design
+        </button>
+        <button onClick={onNext} className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-400 transition">
+          Generate Report <ArrowRight className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── ReportPanel ──────────────────────────────────────────── */
+
+function ReportPanel({
   result,
   site,
   onBack,
@@ -822,12 +1026,10 @@ function ResultsPanel({
       setDownloading(null);
     }
   };
+
   const f = result.financial;
   const s = result.sizing;
   const d = result.demand;
-  const gr = result.grid_risk;
-  const sol = result.solar_resource;
-  const dist = result.distribution;
   const carb = result.carbon;
   const pue = result.productive_use;
   const ess = result.ess;
@@ -835,25 +1037,16 @@ function ResultsPanel({
   const riskAn = result.risk_analysis;
   const conf = result.confidence;
 
-  const riskColor =
-    gr.risk_level === "critical"
-      ? "text-red-400"
-      : gr.risk_level === "high"
-        ? "text-orange-400"
-        : gr.risk_level === "medium"
-          ? "text-yellow-400"
-          : "text-emerald-400";
-
   return (
-    <div className="p-6 space-y-6 text-white">
+    <div className="p-6 space-y-6 text-white overflow-y-auto">
       <div>
-        <h2 className="text-lg font-semibold">Analysis Results</h2>
+        <h2 className="text-lg font-semibold">Pre-Feasibility Report</h2>
         <p className="mt-1 text-sm text-slate-400">
-          {d.households} households | Tier {d.demand_tier} demand |{" "}
-          {d.daily_energy_kwh.toFixed(0)} kWh/day
+          {result.site.name || "Site"} — {d.households} HH, {s.pv_kwp.toFixed(0)} kWp PV, ${(f.total_capex_usd / 1000).toFixed(0)}k CAPEX
         </p>
       </div>
 
+      {/* Screening warnings */}
       {result.screening.warnings.length > 0 && (
         <div className="space-y-2">
           {result.screening.warnings.map((w, i) => (
@@ -874,111 +1067,14 @@ function ResultsPanel({
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3">
-        <MetricCard label="LCOE" value={`$${f.lcoe_usd_kwh.toFixed(2)}/kWh`} />
-        <MetricCard label="Project IRR" value={`${f.irr_pct.toFixed(1)}%`} />
-        <MetricCard label="NPV" value={`$${(f.npv_usd / 1000).toFixed(0)}k`} />
-        <MetricCard label="Payback" value={`${f.payback_years.toFixed(1)} yrs`} />
+      {/* Key metrics summary */}
+      <div className="grid grid-cols-3 gap-2">
+        <MetricCard label="LCOE" value={`$${f.lcoe_usd_kwh.toFixed(2)}`} />
+        <MetricCard label="IRR" value={`${f.irr_pct.toFixed(1)}%`} />
         <MetricCard label="CAPEX" value={`$${(f.total_capex_usd / 1000).toFixed(0)}k`} />
-        <MetricCard label="Min DSCR" value={f.dscr.toFixed(2)} />
-        {f.equity_irr_pct != null && (
-          <MetricCard label="Equity IRR" value={`${f.equity_irr_pct.toFixed(1)}%`} />
-        )}
-        {f.capex_per_wp != null && (
-          <MetricCard label="CAPEX/Wp" value={`$${f.capex_per_wp.toFixed(2)}`} />
-        )}
       </div>
 
-      {sol && (
-        <div className="space-y-2">
-          <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5">
-            <Sun className="h-4 w-4 text-yellow-400" />
-            Solar Resource
-          </h3>
-          <DataRow label="Annual GHI" value={`${sol.annual_ghi_kwh_m2.toFixed(0)} kWh/m²/yr`} />
-          <DataRow label="Specific Yield" value={`${sol.specific_yield_kwh_per_kwp.toFixed(0)} kWh/kWp`} />
-          <DataRow label="Performance Ratio" value={`${(sol.performance_ratio * 100).toFixed(1)}%`} />
-          <DataRow label="Data Source" value={sol.data_source} />
-        </div>
-      )}
-
-      <div className="space-y-2">
-        <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5">
-          <Battery className="h-4 w-4 text-blue-400" />
-          System Sizing
-        </h3>
-        <DataRow label="PV Array" value={`${s.pv_kwp.toFixed(1)} kWp`} />
-        <DataRow label="Battery" value={`${s.battery_kwh_nominal.toFixed(0)} kWh (${s.battery_kwh_usable.toFixed(0)} usable)`} />
-        <DataRow label="Inverter" value={`${s.inverter_kva.toFixed(1)} kVA`} />
-        {s.dc_ac_ratio != null && <DataRow label="DC/AC Ratio" value={s.dc_ac_ratio.toFixed(2)} />}
-        <DataRow label="LV Network" value={`${s.lv_line_km.toFixed(1)} km`} />
-        <DataRow label="Transformers" value={`${s.service_transformers}`} />
-      </div>
-
-      {s.annual_generation_kwh != null && (
-        <div className="space-y-2">
-          <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5">
-            <Zap className="h-4 w-4 text-amber-400" />
-            Dispatch Simulation
-          </h3>
-          <DataRow label="Annual Generation" value={`${(s.annual_generation_kwh / 1000).toFixed(1)} MWh`} />
-          {s.annual_energy_served_kwh != null && (
-            <DataRow label="Energy Served" value={`${(s.annual_energy_served_kwh / 1000).toFixed(1)} MWh`} />
-          )}
-          {s.unmet_energy_pct != null && <DataRow label="Unmet Energy" value={`${s.unmet_energy_pct.toFixed(1)}%`} />}
-          {s.curtailment_pct != null && <DataRow label="Curtailment" value={`${s.curtailment_pct.toFixed(1)}%`} />}
-          {s.capacity_factor_pct != null && <DataRow label="Capacity Factor" value={`${s.capacity_factor_pct.toFixed(1)}%`} />}
-          {s.battery_cycles_per_year != null && <DataRow label="Battery Cycles/yr" value={`${s.battery_cycles_per_year.toFixed(0)}`} />}
-        </div>
-      )}
-
-      <div className="space-y-2">
-        <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5">
-          <DollarSign className="h-4 w-4 text-emerald-400" />
-          Financial Structure
-        </h3>
-        <DataRow label="Cost-reflective tariff" value={`$${f.cost_reflective_tariff_usd.toFixed(3)}/kWh`} />
-        <DataRow label="Affordable tariff" value={`$${f.affordable_tariff_usd.toFixed(3)}/kWh`} />
-        {f.grant_amount_usd != null && <DataRow label="Grant / Subsidy" value={`$${(f.grant_amount_usd / 1000).toFixed(0)}k`} />}
-        {f.debt_amount_usd != null && <DataRow label="Concessional Debt" value={`$${(f.debt_amount_usd / 1000).toFixed(0)}k`} />}
-        {f.equity_amount_usd != null && <DataRow label="Developer Equity" value={`$${(f.equity_amount_usd / 1000).toFixed(0)}k`} />}
-        {f.annual_opex_usd != null && <DataRow label="Annual OPEX" value={`$${(f.annual_opex_usd / 1000).toFixed(1)}k`} />}
-        <DataRow label="Subsidy gap" value={`$${f.subsidy_gap_per_connection_usd.toFixed(0)}/conn (${f.subsidy_gap_pct_capex.toFixed(0)}% CAPEX)`} />
-      </div>
-
-      {dist && (
-        <div className="space-y-2">
-          <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5">
-            <Network className="h-4 w-4 text-cyan-400" />
-            Distribution Network
-          </h3>
-          <DataRow label="Line Length" value={`${dist.total_line_length_m.toFixed(0)} m`} />
-          <DataRow label="Poles" value={`${dist.pole_count}`} />
-          <DataRow label="Customers" value={`${dist.customers_connected}`} />
-          <DataRow label="Network Cost" value={`$${(dist.total_network_cost_usd / 1000).toFixed(1)}k`} />
-          <DataRow label="Cost/Connection" value={`$${dist.cost_per_connection_usd.toFixed(0)}`} />
-          <DataRow label="Voltage Drop" value={`${dist.voltage_drop_max_pct.toFixed(1)}%`} />
-        </div>
-      )}
-
-      <div className="space-y-2">
-        <h3 className={`text-sm font-medium flex items-center gap-1.5 ${riskColor}`}>
-          <ShieldAlert className="h-4 w-4" />
-          Grid Risk: {gr.risk_level.charAt(0).toUpperCase() + gr.risk_level.slice(1)}
-        </h3>
-        <DataRow label="Nearest MV" value={`${gr.dist_mv_km.toFixed(1)} km`} />
-        <DataRow label="Nearest HV" value={`${gr.dist_hv_km.toFixed(1)} km`} />
-        <DataRow label="Assessment" value={gr.risk_label} />
-        {gr.esmap_recommended && <DataRow label="ESMAP Strategy" value={gr.esmap_recommended} />}
-        {gr.scenarios && gr.scenarios.map((sc) => (
-          <DataRow
-            key={sc.arrival_year}
-            label={`Grid at year ${sc.arrival_year}`}
-            value={`IRR ${sc.adjusted_irr.toFixed(1)}% | ${sc.investment_recovered_pct.toFixed(0)}% recovered`}
-          />
-        ))}
-      </div>
-
+      {/* Carbon Credits */}
       {carb && (
         <div className="space-y-2">
           <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5">
@@ -991,23 +1087,20 @@ function ResultsPanel({
           {carb.revenue_by_scenario.market != null && (
             <DataRow label="Market Revenue" value={`$${carb.revenue_by_scenario.market.toFixed(0)}/yr`} />
           )}
-          {carb.revenue_by_scenario.high != null && (
-            <DataRow label="High Scenario" value={`$${carb.revenue_by_scenario.high.toFixed(0)}/yr`} />
-          )}
         </div>
       )}
 
-      {/* ── Productive Use Value Chain ───────────────────────── */}
+      {/* Productive Use */}
       {pue && pue.sectors.filter((sec) => sec.relevance === "high" || sec.relevance === "medium").length > 0 && (
         <div className="space-y-2">
           <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5">
             <Factory className="h-4 w-4 text-amber-400" />
-            Productive Use Value Chain
+            Productive Use
           </h3>
           <div className="rounded-md bg-slate-700/50 p-3 space-y-2">
             <p className="text-xs text-slate-400">
-              {pue.sectors.filter((s) => s.relevance === "high").length} high-relevance,{" "}
-              {pue.sectors.filter((s) => s.relevance === "medium").length} medium-relevance sectors
+              {pue.sectors.filter((sec) => sec.relevance === "high").length} high-relevance,{" "}
+              {pue.sectors.filter((sec) => sec.relevance === "medium").length} medium-relevance sectors
             </p>
             {pue.sectors
               .filter((sec) => sec.relevance === "high" || sec.relevance === "medium")
@@ -1029,13 +1122,10 @@ function ResultsPanel({
           {pue.complementary_investment_usd.total != null && (
             <DataRow label="Complementary Investment" value={`$${(pue.complementary_investment_usd.total / 1000).toFixed(0)}k`} />
           )}
-          {pue.incremental_income_usd_year > 0 && (
-            <DataRow label="Income Uplift" value={`$${pue.incremental_income_usd_year.toFixed(0)}/HH/yr`} />
-          )}
         </div>
       )}
 
-      {/* ── Climate Rationale ────────────────────────────────── */}
+      {/* Climate */}
       {climate && (
         <div className="space-y-2">
           <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5">
@@ -1043,30 +1133,14 @@ function ResultsPanel({
             Climate Rationale
           </h3>
           <DataRow label="Lifetime Avoided" value={`${climate.lifetime_avoided_tco2e.toFixed(0)} tCO2e`} />
-          <DataRow label="Per Capita" value={`${climate.per_capita_reduction_tco2e.toFixed(2)} tCO2e/person`} />
           <DataRow label="Overall Hazard" value={climate.overall_hazard_level.replace("_", " ")} />
-          {climate.hazards.filter((h) => h.level === "very_high" || h.level === "high").length > 0 && (
-            <div className="rounded-md bg-slate-700/50 p-3 space-y-1">
-              <p className="text-xs text-slate-400 font-medium">High-Risk Hazards</p>
-              {climate.hazards
-                .filter((h) => h.level === "very_high" || h.level === "high")
-                .map((h) => (
-                  <div key={h.hazard} className="flex items-center justify-between text-xs">
-                    <span className="text-slate-300 capitalize">{h.hazard.replace("_", " ")}</span>
-                    <span className={h.level === "very_high" ? "text-red-400 font-medium" : "text-orange-400"}>
-                      {h.level.replace("_", " ")}
-                    </span>
-                  </div>
-                ))}
-            </div>
-          )}
           {climate.climate_finance_score && (
             <DataRow label="Climate Finance" value={`${climate.climate_finance_score} potential ($${(climate.total_climate_finance_potential_usd / 1000).toFixed(0)}k)`} />
           )}
         </div>
       )}
 
-      {/* ── ESS Screening ────────────────────────────────────── */}
+      {/* ESS */}
       {ess && (
         <div className="space-y-2">
           <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5">
@@ -1077,20 +1151,10 @@ function ResultsPanel({
           <DataRow label="Biodiversity" value={ess.biodiversity_sensitivity} />
           <DataRow label="Resettlement Risk" value={ess.resettlement_risk} />
           <DataRow label="Overall ESS Risk" value={ess.overall_ess_risk} />
-          {ess.gesi_considerations.length > 0 && (
-            <div className="rounded-md bg-slate-700/50 p-3">
-              <p className="text-xs text-slate-400 font-medium mb-1">GESI Considerations</p>
-              <ul className="text-xs text-slate-300 space-y-0.5">
-                {ess.gesi_considerations.slice(0, 3).map((g, i) => (
-                  <li key={i}>• {g}</li>
-                ))}
-              </ul>
-            </div>
-          )}
         </div>
       )}
 
-      {/* ── Risk Analysis ────────────────────────────────────── */}
+      {/* Risk */}
       {riskAn && (
         <div className="space-y-2">
           <h3 className={`text-sm font-medium flex items-center gap-1.5 ${
@@ -1099,7 +1163,7 @@ function ResultsPanel({
             riskAn.overall_risk_level === "medium" ? "text-yellow-400" : "text-emerald-400"
           }`}>
             <AlertOctagon className="h-4 w-4" />
-            Risk Assessment: {riskAn.overall_risk_level.charAt(0).toUpperCase() + riskAn.overall_risk_level.slice(1)}
+            Risk: {riskAn.overall_risk_level.charAt(0).toUpperCase() + riskAn.overall_risk_level.slice(1)}
           </h3>
           <DataRow label="Risk Score" value={`${riskAn.overall_risk_score.toFixed(1)} / 25`} />
           {riskAn.top_risks.slice(0, 3).map((risk, i) => (
@@ -1107,13 +1171,10 @@ function ResultsPanel({
               <span className="text-xs text-slate-300">{i + 1}. {risk}</span>
             </div>
           ))}
-          {riskAn.mitigation_investment_usd > 0 && (
-            <DataRow label="Mitigation Cost" value={`$${(riskAn.mitigation_investment_usd / 1000).toFixed(0)}k`} />
-          )}
         </div>
       )}
 
-      {/* ── Confidence Scoring ───────────────────────────────── */}
+      {/* Confidence */}
       {conf && (
         <div className="space-y-2">
           <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5">
@@ -1141,68 +1202,34 @@ function ResultsPanel({
             </div>
           </div>
           <DataRow label="Data Completeness" value={`${conf.data_completeness_pct.toFixed(0)}%`} />
-          {conf.dimensions.slice(0, 4).map((dim) => (
-            <div key={dim.dimension} className="flex items-center justify-between rounded-md bg-slate-700/50 px-3 py-1.5">
-              <span className="text-xs text-slate-400 truncate max-w-[55%]">{dim.dimension}</span>
-              <span className="text-xs text-slate-300">±{dim.margin_of_error_pct.toFixed(0)}% ({dim.data_quality})</span>
-            </div>
-          ))}
-          {conf.recommendations.length > 0 && (
-            <div className="rounded-md bg-slate-700/50 p-3">
-              <p className="text-xs text-slate-400 font-medium mb-1">To Improve Accuracy</p>
-              <ul className="text-xs text-slate-300 space-y-0.5">
-                {conf.recommendations.slice(0, 2).map((rec, i) => (
-                  <li key={i}>• {rec}</li>
-                ))}
-              </ul>
-            </div>
-          )}
         </div>
       )}
 
+      {/* Download buttons */}
       <div className="space-y-2">
-        <h3 className="text-sm font-medium text-slate-300">CAPEX Breakdown</h3>
-        <CapexBar breakdown={f.capex_breakdown} total={f.total_capex_usd} />
-      </div>
-
-      <div className="space-y-2">
+        <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5">
+          <Briefcase className="h-4 w-4 text-slate-300" />
+          Generate Reports
+        </h3>
         <div className="flex gap-3">
-          <button
-            onClick={() => handleDownload("pdf")}
-            disabled={downloading === "pdf"}
-            className="flex-1 rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-400 disabled:opacity-50 transition"
-          >
-            {downloading === "pdf" ? "Generating..." : "Report"}
+          <button onClick={() => handleDownload("pdf")} disabled={downloading === "pdf"} className="flex-1 rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-400 disabled:opacity-50 transition">
+            {downloading === "pdf" ? "Generating..." : "HTML Report"}
           </button>
-          <button
-            onClick={() => handleDownload("pfs")}
-            disabled={downloading === "pfs"}
-            className="flex-1 rounded-lg bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-400 disabled:opacity-50 transition"
-          >
+          <button onClick={() => handleDownload("pfs")} disabled={downloading === "pfs"} className="flex-1 rounded-lg bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-400 disabled:opacity-50 transition">
             {downloading === "pfs" ? "Generating..." : "PFS (.docx)"}
           </button>
-          <button
-            onClick={() => handleDownload("excel")}
-            disabled={downloading === "excel"}
-            className="flex-1 rounded-lg bg-blue-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-400 disabled:opacity-50 transition"
-          >
+          <button onClick={() => handleDownload("excel")} disabled={downloading === "excel"} className="flex-1 rounded-lg bg-blue-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-400 disabled:opacity-50 transition">
             {downloading === "excel" ? "Generating..." : "Excel"}
           </button>
         </div>
-        <button
-          onClick={() => handleDownload("concession")}
-          disabled={downloading === "concession"}
-          className="w-full rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-amber-500 disabled:opacity-50 transition"
-        >
-          {downloading === "concession" ? "Generating..." : "ARENE Concession Data Sheet (JSON)"}
-        </button>
-        <button
-          onClick={onBack}
-          className="w-full rounded-lg bg-slate-700 px-4 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-600 transition"
-        >
-          Adjust Parameters
+        <button onClick={() => handleDownload("concession")} disabled={downloading === "concession"} className="w-full rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-amber-500 disabled:opacity-50 transition">
+          {downloading === "concession" ? "Generating..." : "ARENE Concession Data Sheet"}
         </button>
       </div>
+
+      <button onClick={onBack} className="w-full flex items-center justify-center gap-2 rounded-lg bg-slate-700 px-4 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-600 transition">
+        <ArrowLeft className="h-4 w-4" /> Back to Optimize
+      </button>
     </div>
   );
 }
