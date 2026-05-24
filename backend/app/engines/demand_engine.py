@@ -33,14 +33,14 @@ PROFILES = {
     ],
 }
 
-DIVERSITY_FACTORS = [
-    (1, 5, 0.90),
-    (6, 20, 0.70),
-    (21, 50, 0.50),
-    (51, 100, 0.40),
-    (101, 200, 0.35),
-    (201, 99999, 0.30),
-]
+MOTOR_KW = {
+    "rural_residential": 0.0,
+    "mixed_productive": 3.0,
+    "commercial_periurban": 1.5,
+}
+LRA_MULTIPLIER = 4.0
+GROWTH_RATE = 0.05
+HORIZON_YEARS = 10
 
 DAYS_PER_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
@@ -96,8 +96,15 @@ def estimate_demand(
     profile_shape = _load_profile(profile_name)
 
     load_profile_kw = [daily_energy_kwh * fraction for fraction in profile_shape]
-    diversity = _get_diversity_factor(households) if not use_dre else 1.0
-    peak_demand_kw = max(load_profile_kw) * diversity
+
+    # --- Peak load engineering (Strand-Axelsson coincidence + motor surge + growth) ---
+    n_customers = households
+    coincidence = 0.2 + 0.8 / math.sqrt(max(n_customers, 1))
+    diversity = coincidence  # backward-compatible alias
+    p_steady = max(load_profile_kw) * coincidence
+    largest_motor_kw = MOTOR_KW.get(profile_name, 0.0)
+    p_with_surge = p_steady + largest_motor_kw * (LRA_MULTIPLIER - 1)
+    peak_demand_kw = p_with_surge * (1 + GROWTH_RATE) ** HORIZON_YEARS
 
     hourly_8760 = _build_8760_demand(load_profile_kw)
 
@@ -111,15 +118,6 @@ def estimate_demand(
         persons_per_hh=persons_per_hh,
     )
     return estimate, hourly_8760
-
-
-def _get_diversity_factor(n_customers: int) -> float:
-    if n_customers <= 0:
-        return 1.0
-    for low, high, factor in DIVERSITY_FACTORS:
-        if low <= n_customers <= high:
-            return factor
-    return 0.30
 
 
 def _build_8760_demand(load_profile_24h: list[float]) -> list[float]:

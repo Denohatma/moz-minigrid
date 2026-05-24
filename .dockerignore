@@ -1,0 +1,9 @@
+frontend/
+node_modules/
+.git/
+*.xlsx
+*.docx
+__pycache__/
+*.pyc
+.env
+.next/
