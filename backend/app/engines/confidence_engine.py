@@ -3,11 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from pydantic import BaseModel, Field
-
 from app.schemas.site import ClusterInfo
 from app.schemas.analysis import (
     CarbonAssessment,
+    ConfidenceAssessment,
+    ConfidenceDimension,
     DemandEstimate,
     FinancialResults,
     SolarResource,
@@ -54,28 +54,6 @@ _COMPLETENESS_FIELDS = [
     "small_buildings", "ghi_kwh_m2_year", "dist_grid_mv_km",
     "security_risk", "travel_time_hrs",
 ]
-
-
-# ── Output models ─────────────────────────────────────────────────
-
-class ConfidenceDimension(BaseModel):
-    dimension: str
-    confidence_score: int = Field(ge=0, le=100, description="0-100 confidence")
-    margin_of_error_pct: float = Field(description="±% uncertainty at 95% CI")
-    data_quality: str = Field(description="high, medium, or low")
-    key_assumptions: list[str]
-    calibration_status: str = Field(
-        description="calibrated, partially_calibrated, or uncalibrated"
-    )
-
-
-class ConfidenceAssessment(BaseModel):
-    dimensions: list[ConfidenceDimension]
-    overall_confidence_score: int = Field(ge=0, le=100)
-    overall_confidence_level: str = Field(description="high (>75), medium (50-75), low (<50)")
-    data_completeness_pct: float
-    recommendations: list[str]
-    warnings: list[str]
 
 
 # ── Main entry point ──────────────────────────────────────────────

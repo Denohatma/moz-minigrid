@@ -5,60 +5,16 @@ import math
 from pathlib import Path
 from typing import Optional
 
-from pydantic import BaseModel, Field
-
 from app.schemas.site import ClusterInfo
-from app.schemas.analysis import DemandEstimate
+from app.schemas.analysis import (
+    DemandEstimate,
+    ProductiveUseSector,
+    AnchorCustomer,
+    ProductiveUseEquipment,
+    ProductiveUseAssessment,
+)
 
 COUNTRY_DIR = Path(__file__).resolve().parents[3] / "countries" / "mozambique"
-
-
-# ── Output Models ──────────────────────────────────────────────────────
-
-
-class ProductiveUseSector(BaseModel):
-    sector: str
-    relevance: str = Field(description="high, medium, low, or none")
-    rationale: str
-    indicative_activities: list[str]
-    estimated_demand_kwh_day: float
-    seasonal_pattern: str = Field(description="year-round, seasonal, or post-harvest")
-
-
-class AnchorCustomer(BaseModel):
-    type: str
-    name: str
-    estimated_demand_kwh_day: float
-    estimated_peak_kw: float
-    confidence: str = Field(description="high, medium, or low")
-    contract_type: str = Field(description="take-or-pay, minimum-offtake, or standard")
-
-
-class ProductiveUseEquipment(BaseModel):
-    sector: str
-    equipment: str
-    power_kw: float
-    capex_usd_low: float
-    capex_usd_high: float
-    ownership_model: str
-
-
-class ProductiveUseAssessment(BaseModel):
-    sectors: list[ProductiveUseSector]
-    anchors: list[AnchorCustomer]
-    total_productive_demand_kwh_day: float
-    productive_demand_pct: float
-    demand_projections: dict = Field(description="year -> kwh/day")
-    equipment_recommendations: list[ProductiveUseEquipment]
-    complementary_investment_usd: dict = Field(
-        description="equipment, working_capital, market_access, training, total"
-    )
-    jobs: dict = Field(description="direct, indirect, total")
-    incremental_income_usd_year: float
-    demand_stimulation: dict = Field(
-        description="uptake targets, finance model, aggregation strategy"
-    )
-    warnings: list[str] = Field(default_factory=list)
 
 
 # ── Province mappings for sector relevance ─────────────────────────────

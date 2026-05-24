@@ -3,41 +3,17 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from pydantic import BaseModel, Field
-
 from app.schemas.site import ClusterInfo
 from app.schemas.analysis import (
     DemandEstimate,
     FinancialResults,
     GridRiskAssessment,
     SystemSizing,
+    RiskItem,
+    RiskAnalysis,
 )
 
 COUNTRY_DIR = Path(__file__).resolve().parents[3] / "countries" / "mozambique"
-
-
-# ── Output models ──────────────────────────────────────────────────
-
-class RiskItem(BaseModel):
-    category: str = Field(description="technical, commercial, regulatory, security, social, climate, currency, political")
-    sub_risk: str = Field(description="Specific risk within category")
-    likelihood: int = Field(ge=1, le=5)
-    impact: int = Field(ge=1, le=5)
-    risk_score: int = Field(description="Likelihood x Impact")
-    risk_level: str = Field(description="critical (>16), high (12-16), medium (6-11), low (1-5)")
-    description: str
-    mitigation: list[str]
-    allocation: str = Field(description="concessionaire, public_partner, shared, risk_instrument")
-
-
-class RiskAnalysis(BaseModel):
-    risks: list[RiskItem]
-    overall_risk_score: float
-    overall_risk_level: str = Field(description="critical, high, medium, low")
-    top_risks: list[str] = Field(description="Top 3 risk descriptions")
-    risk_allocation_summary: dict = Field(description="Mapping of allocation category to list of risk descriptions")
-    mitigation_investment_usd: float = Field(description="Estimated cost of mitigation measures")
-    warnings: list[str] = Field(default_factory=list)
 
 
 # ── Category weights for overall score ─────────────────────────────

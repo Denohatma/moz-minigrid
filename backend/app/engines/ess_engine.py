@@ -4,10 +4,12 @@ import math
 from pathlib import Path
 from typing import Optional
 
-from pydantic import BaseModel, Field
-
 from app.schemas.site import ClusterInfo
-from app.schemas.analysis import SystemSizing
+from app.schemas.analysis import (
+    SystemSizing,
+    ProtectedAreaCheck,
+    ESSScreening,
+)
 
 COUNTRY_DIR = Path(__file__).resolve().parents[3] / "countries" / "mozambique"
 
@@ -37,55 +39,6 @@ PROTECTED_AREAS = [
     ("Marromeu Reserve", -18.50, 35.50, 30),
     ("Chimanimani", -19.72, 33.47, 20),
 ]
-
-
-# ── Output schemas ─────────────────────────────────────────────────
-
-class ProtectedAreaCheck(BaseModel):
-    area_name: str
-    distance_km: float
-    buffer_zone: bool
-    sensitivity: str = Field(description="high, moderate, or low")
-
-
-class ESSScreening(BaseModel):
-    # ESIA classification
-    esia_category: str = Field(description="A, B+, B, or C")
-    esia_rationale: str
-    esia_requirements: list[str]
-
-    # Biodiversity
-    biodiversity_sensitivity: str = Field(description="high, moderate, or low")
-    protected_area_checks: list[ProtectedAreaCheck]
-    biodiversity_notes: str
-
-    # Resettlement
-    resettlement_risk: str = Field(description="high, moderate, low, or negligible")
-    physical_displacement_risk: str
-    economic_displacement_risk: str
-    resettlement_notes: str
-    estimated_land_requirement_ha: float
-
-    # Safety
-    labour_safety_risks: list[str]
-    community_safety_risks: list[str]
-
-    # Stakeholder engagement
-    stakeholder_groups: list[str]
-    consultation_requirements: list[str]
-
-    # Grievance redress mechanism
-    grievance_mechanism: dict
-
-    # GESI
-    gesi_considerations: list[str]
-    womens_empowerment_opportunities: list[str]
-    inclusion_measures: list[str]
-
-    # Overall
-    overall_ess_risk: str = Field(description="high, substantial, moderate, or low")
-    recommended_actions: list[str]
-    warnings: list[str]
 
 
 # ── Main screening function ────────────────────────────────────────
