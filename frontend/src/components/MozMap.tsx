@@ -39,20 +39,38 @@ export default function MozMap({
       style: {
         version: 8,
         sources: {
-          osm: {
+          satellite: {
             type: "raster",
-            tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+            tiles: [
+              "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+            ],
             tileSize: 256,
-            attribution: "&copy; OpenStreetMap contributors",
+            attribution: "&copy; Esri, Maxar, Earthstar Geographics",
+            maxzoom: 18,
+          },
+          labels: {
+            type: "raster",
+            tiles: [
+              "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+            ],
+            tileSize: 256,
+            maxzoom: 18,
           },
         },
         layers: [
           {
-            id: "osm-tiles",
+            id: "satellite-tiles",
             type: "raster",
-            source: "osm",
+            source: "satellite",
             minzoom: 0,
-            maxzoom: 19,
+            maxzoom: 18,
+          },
+          {
+            id: "label-tiles",
+            type: "raster",
+            source: "labels",
+            minzoom: 0,
+            maxzoom: 18,
           },
         ],
       },
