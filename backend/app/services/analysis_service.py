@@ -104,11 +104,13 @@ def run_full_analysis(
 
     # ── Calibrate coverage so distribution = 27% of total CAPEX ──
     # ESMAP benchmark: distribution is 26-27% of total mini-grid CAPEX.
-    # Adjust number of connections (coverage) to hit that target.
+    # Only reduce coverage (never increase beyond initial 50%) — "we don't
+    # cover the full village" when distribution would exceed 27%.
     dist_pct, gen_equip = _dist_share(financial, distribution)
+    initial_coverage = demand.coverage_pct
 
     if (distribution
-            and abs(dist_pct - DIST_TARGET_PCT) > DIST_TOLERANCE
+            and dist_pct > DIST_TARGET_PCT + DIST_TOLERANCE
             and distribution.cost_per_connection_usd > 0
             and "coverage_pct" not in overrides):
         total_hh = demand.total_settlement_households
@@ -117,7 +119,7 @@ def run_full_analysis(
         for _ in range(3):
             target_dist = gen_equip * DIST_TARGET_PCT / (1 - DIST_TARGET_PCT)
             target_n = max(1, min(round(target_dist / cost_per_conn), total_hh))
-            new_coverage = target_n / max(total_hh, 1)
+            new_coverage = min(target_n / max(total_hh, 1), initial_coverage)
 
             adj_overrides = {**overrides, "coverage_pct": new_coverage}
             demand, hourly_demand = estimate_demand(cluster, adj_overrides)
