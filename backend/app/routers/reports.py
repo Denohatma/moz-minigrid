@@ -7,7 +7,7 @@ from app.schemas.analysis import AnalysisRequest
 from app.services.analysis_service import run_full_analysis
 from app.engines.excel_engine import generate_excel
 from app.engines.report_engine import generate_html_report
-from app.engines.pfs_engine import generate_pfs_docx
+from app.engines.pfs_engine import generate_pfs_docx, generate_pfs_docx_v2, generate_pfs_summary_docx
 from app.engines.concession_engine import generate_concession_json
 
 router = APIRouter()
@@ -34,7 +34,54 @@ def generate_pdf_report(request: AnalysisRequest):
 
 
 @router.post("/pfs")
-def generate_pfs_report(request: AnalysisRequest):
+def generate_pfs_report_endpoint(request: AnalysisRequest):
+    """Generate the comprehensive PUE-led Pre-Feasibility Study (v2 template)."""
+    try:
+        result = run_full_analysis(
+            latitude=request.latitude,
+            longitude=request.longitude,
+            name=request.name,
+            overrides=request.overrides,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    docx_bytes = generate_pfs_docx_v2(result)
+    site_name = result.cluster.village_name or "site"
+    pv = result.sizing.pv_kwp
+    return Response(
+        content=docx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="{site_name}-{pv:.0f}kWp-PFS.docx"'},
+    )
+
+
+@router.post("/pfs-summary")
+def generate_pfs_summary_endpoint(request: AnalysisRequest):
+    """Generate a 5-page executive summary of the PFS."""
+    try:
+        result = run_full_analysis(
+            latitude=request.latitude,
+            longitude=request.longitude,
+            name=request.name,
+            overrides=request.overrides,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    docx_bytes = generate_pfs_summary_docx(result)
+    site_name = result.cluster.village_name or "site"
+    pv = result.sizing.pv_kwp
+    return Response(
+        content=docx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="{site_name}-{pv:.0f}kWp-Summary.docx"'},
+    )
+
+
+@router.post("/pfs-legacy")
+def generate_pfs_report_legacy(request: AnalysisRequest):
+    """Generate the original PFS document (legacy format)."""
     try:
         result = run_full_analysis(
             latitude=request.latitude,
@@ -51,7 +98,7 @@ def generate_pfs_report(request: AnalysisRequest):
     return Response(
         content=docx_bytes,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        headers={"Content-Disposition": f'attachment; filename="{site_name}-{pv:.0f}kWp-PFS.docx"'},
+        headers={"Content-Disposition": f'attachment; filename="{site_name}-{pv:.0f}kWp-PFS-legacy.docx"'},
     )
 
 

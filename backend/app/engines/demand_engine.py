@@ -41,6 +41,7 @@ MOTOR_KW = {
 LRA_MULTIPLIER = 4.0
 GROWTH_RATE = 0.05
 HORIZON_YEARS = 10
+ROUND1_COVERAGE = 0.50
 
 DAYS_PER_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
@@ -64,6 +65,8 @@ def estimate_demand(
     if "persons_per_hh" in overrides:
         persons_per_hh = float(overrides["persons_per_hh"])
 
+    coverage = float(overrides.get("coverage_pct", ROUND1_COVERAGE))
+
     use_dre = (
         cluster.dre_num_connections
         and cluster.dre_demand_kwh_day
@@ -72,17 +75,22 @@ def estimate_demand(
     )
 
     if use_dre:
-        households = cluster.dre_num_connections
-        daily_energy_kwh = cluster.dre_demand_kwh_day
+        total_hh = cluster.dre_num_connections
+        households = max(int(total_hh * coverage), 1)
+        demand_per_conn = cluster.dre_demand_per_conn_kwh_day or (
+            cluster.dre_demand_kwh_day / total_hh
+        )
+        daily_energy_kwh = households * demand_per_conn
         annual_energy_kwh = daily_energy_kwh * 365.0
-        demand_per_conn = cluster.dre_demand_per_conn_kwh_day or (daily_energy_kwh / households)
         tier = _tier_from_demand_per_conn(demand_per_conn)
     else:
         unelectrified_pop = max(cluster.population - cluster.electrified_pop, 0)
-        households = max(int(unelectrified_pop / persons_per_hh), 1)
+        total_hh = max(int(unelectrified_pop / persons_per_hh), 1)
 
         if "households" in overrides:
-            households = int(overrides["households"])
+            total_hh = int(overrides["households"])
+
+        households = max(int(total_hh * coverage), 1)
 
         tier = _assign_demand_tier(cluster)
         if "demand_tier" in overrides:
@@ -110,6 +118,8 @@ def estimate_demand(
 
     estimate = DemandEstimate(
         households=households,
+        total_settlement_households=total_hh,
+        coverage_pct=coverage,
         demand_tier=tier,
         daily_energy_kwh=round(daily_energy_kwh, 2),
         peak_demand_kw=round(peak_demand_kw, 2),

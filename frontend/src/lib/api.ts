@@ -68,10 +68,13 @@ export interface ClusterInfo {
 
 export interface DemandEstimate {
   households: number;
+  total_settlement_households: number;
+  coverage_pct: number;
   demand_tier: number;
   daily_energy_kwh: number;
   peak_demand_kw: number;
   annual_energy_kwh: number;
+  productive_use_kwh_day: number;
   load_profile_kw: number[];
   persons_per_hh: number;
 }
@@ -516,7 +519,7 @@ export async function lookupCluster(
 
 export async function downloadReport(
   coords: SiteCoordinates,
-  format: "pdf" | "excel" | "pfs" | "concession",
+  format: "pdf" | "excel" | "pfs" | "pfs-summary" | "concession",
   overrides?: Record<string, unknown>
 ): Promise<Blob> {
   const res = await fetch(`${API_BASE}/api/reports/${format}`, {

@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import io
 import math
+import tempfile
 from datetime import date
+from pathlib import Path
+
 from docx import Document
 from docx.shared import Inches, Pt, Cm, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.oxml.ns import qn
-import io
 
 from app.schemas.analysis import (
     AnalysisResult,
@@ -17,6 +20,61 @@ from app.schemas.analysis import (
     RiskAnalysis,
     ConfidenceAssessment,
 )
+from app.templates.pfs_template import generate_pfs_report
+from app.templates.pfs_summary_template import generate_pfs_summary
+
+
+def generate_pfs_summary_docx(result: AnalysisResult) -> bytes:
+    """Generate a 5-page executive summary document."""
+    result_dict = result.model_dump()
+    result_dict["site"] = {
+        "latitude": result.site.latitude,
+        "longitude": result.site.longitude,
+        "name": result.site.name,
+    }
+    site_name = result.cluster.village_name or result.site.name or "Unnamed"
+
+    with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
+        tmp_path = tmp.name
+
+    generate_pfs_summary(result_dict, site_name, tmp_path)
+
+    docx_bytes = Path(tmp_path).read_bytes()
+    Path(tmp_path).unlink(missing_ok=True)
+    return docx_bytes
+
+
+def generate_pfs_docx_v2(result: AnalysisResult) -> bytes:
+    """Generate a comprehensive PFS document using the new PUE-led template.
+
+    This is the upgraded version that produces a full ARENE-aligned,
+    productive-use-led pre-feasibility study document.
+    """
+    # Convert AnalysisResult to a plain dict for the template
+    result_dict = result.model_dump()
+
+    # Inject site coordinates at top level for the template
+    result_dict["site"] = {
+        "latitude": result.site.latitude,
+        "longitude": result.site.longitude,
+        "name": result.site.name,
+    }
+
+    site_name = (
+        result.cluster.village_name
+        or result.site.name
+        or "Unnamed"
+    )
+
+    # Write to a temporary file, then read bytes
+    with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
+        tmp_path = tmp.name
+
+    generate_pfs_report(result_dict, site_name, tmp_path)
+
+    docx_bytes = Path(tmp_path).read_bytes()
+    Path(tmp_path).unlink(missing_ok=True)
+    return docx_bytes
 
 
 def generate_pfs_docx(result: AnalysisResult) -> bytes:

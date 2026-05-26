@@ -17,9 +17,9 @@ TERRAIN_MULTIPLIERS = {
 }
 
 CONDUCTORS = {
-    "ABC_35mm2": {"resistance_ohm_per_km": 0.87},
+    "AAC_50mm2": {"resistance_ohm_per_km": 0.641},
+    "AAC_35mm2": {"resistance_ohm_per_km": 0.868},
     "ABC_16mm2": {"resistance_ohm_per_km": 1.91},
-    "ACSR_Rabbit": {"resistance_ohm_per_km": 4.70},
 }
 
 POWER_FACTOR = 0.85
@@ -57,20 +57,20 @@ def design_distribution(
 
     pole_cost = cfg.get("pole_cost_usd", 85)
     pole_span = cfg.get("pole_span_m", 40)
-    service_drop_cost = cfg.get("service_drop_cost_usd", 175)
+    service_drop_cost = cfg.get("service_drop_cost_usd", 120)
     meter_cost = cfg.get("meter_cost_usd", 45)
-    protection_pct = cfg.get("protection_pct", 0.06)
-    construction_base_pct = cfg.get("construction_labour_base_pct", 0.30)
-    soft_cost_pct = cfg.get("soft_cost_pct", 0.12)
+    protection_pct = cfg.get("protection_pct", 0.05)
+    construction_pct = cfg.get("construction_labour_pct", 0.18)
+    soft_cost_pct = cfg.get("soft_cost_pct", 0.10)
 
     conductor_costs = {
-        "ABC_35mm2": cfg.get("conductor_cost_abc35_per_km", 3800),
-        "ABC_16mm2": cfg.get("conductor_cost_abc16_per_km", 2200),
-        "ACSR_Rabbit": cfg.get("conductor_cost_service_per_km", 1400),
+        "AAC_50mm2": cfg.get("conductor_cost_aac50_per_km", 1000),
+        "AAC_35mm2": cfg.get("conductor_cost_aac35_per_km", 750),
+        "ABC_16mm2": cfg.get("conductor_cost_service_per_km", 1400),
     }
 
-    line_per_customer_m = 25
-    spine_overhead = 1.20
+    line_per_customer_m = 10
+    spine_overhead = 1.15
     total_line_m = round(n_customers * line_per_customer_m * spine_overhead * terrain_mult, 0)
     warnings.append(
         f"Radial estimation: {n_customers} connections × {line_per_customer_m}m "
@@ -84,9 +84,9 @@ def design_distribution(
     boq: list[BoQItem] = []
 
     line_segments = [
-        ("ABC_35mm2", spine_m, "Spine conductor"),
-        ("ABC_16mm2", feeder_m, "Feeder conductor"),
-        ("ACSR_Rabbit", service_m, "Service conductor"),
+        ("AAC_50mm2", spine_m, "Trunk — bare aluminium"),
+        ("AAC_35mm2", feeder_m, "Feeder — bare aluminium"),
+        ("ABC_16mm2", service_m, "Service drop — insulated"),
     ]
     for cond_key, length_m, desc in line_segments:
         cost_per_km = conductor_costs[cond_key]
@@ -103,7 +103,7 @@ def design_distribution(
     pole_count = max(1, int(math.ceil(total_line_m / pole_span)))
     boq.append(BoQItem(
         category="pole",
-        description="Treated wood pole 8m",
+        description="Treated wood pole 8m + pin insulators",
         unit="unit",
         quantity=pole_count,
         unit_cost_usd=pole_cost,
@@ -132,10 +132,10 @@ def design_distribution(
     ))
 
     subtotal = materials_cost + protection_cost
-    construction = round(subtotal * (terrain_mult - 1 + construction_base_pct), 0)
+    construction = round(subtotal * construction_pct, 0)
     boq.append(BoQItem(
         category="construction",
-        description=f"Labour, transport, supervision ({terrain_mult}x terrain)",
+        description="Labour, transport, supervision",
         unit="lump sum",
         quantity=1,
         unit_cost_usd=construction,
@@ -180,7 +180,7 @@ def _estimate_voltage_drop(
     feeders = max(1, n_customers // 80)
     avg_feeder_km = (total_line_m * FEEDER_PCT / feeders) / 1000
     current = peak_kw / (math.sqrt(3) * 0.4 * POWER_FACTOR) / feeders
-    resistance = CONDUCTORS["ABC_16mm2"]["resistance_ohm_per_km"]
+    resistance = CONDUCTORS["AAC_35mm2"]["resistance_ohm_per_km"]
     v_drop_v = current * resistance * avg_feeder_km
     v_drop_pct = v_drop_v / 400 * 100
     return min(v_drop_pct, 15.0)

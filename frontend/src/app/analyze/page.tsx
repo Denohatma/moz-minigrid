@@ -159,15 +159,12 @@ export default function AnalyzePage() {
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col">
       <header className="border-b border-white/10 bg-slate-900/95 backdrop-blur sticky top-0 z-50">
-        <div className="mx-auto max-w-7xl px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link href="/" className="flex items-center gap-2">
-              <Zap className="h-6 w-6 text-emerald-400" />
-              <span className="font-bold text-white">Moz</span>
-            </Link>
-            <span className="text-slate-500">/</span>
-            <span className="text-sm text-slate-300">New Analysis</span>
-          </div>
+        <div className="mx-auto max-w-7xl px-6 py-3 flex items-center gap-4">
+          <Link href="/" className="flex items-center gap-2 shrink-0">
+            <Zap className="h-6 w-6 text-emerald-400" />
+            <span className="font-bold text-white">Moz</span>
+          </Link>
+          <span className="text-slate-600">|</span>
           <StepIndicator current={step} />
         </div>
       </header>
@@ -234,42 +231,66 @@ export default function AnalyzePage() {
 }
 
 function StepIndicator({ current }: { current: WizardStep }) {
-  const steps: { key: WizardStep; label: string }[] = [
-    { key: "select", label: "Select Site" },
-    { key: "review", label: "Review" },
-    { key: "design", label: "Design" },
-    { key: "optimize", label: "Optimize" },
-    { key: "report", label: "Report" },
+  const steps: { key: WizardStep; label: string; icon: typeof MapPin }[] = [
+    { key: "select", label: "Select Site", icon: MapPin },
+    { key: "review", label: "Review Data", icon: Search },
+    { key: "design", label: "System Design", icon: Battery },
+    { key: "optimize", label: "Optimize Costs", icon: DollarSign },
+    { key: "report", label: "PFS Report", icon: Briefcase },
   ];
   const currentIdx = steps.findIndex((s) => s.key === current);
 
   return (
-    <div className="flex items-center gap-2">
-      {steps.map((s, i) => (
-        <div key={s.key} className="flex items-center gap-2">
-          <div
-            className={`flex items-center gap-1.5 text-xs font-medium ${
-              i <= currentIdx ? "text-emerald-400" : "text-slate-500"
-            }`}
-          >
-            <span
-              className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${
-                i < currentIdx
-                  ? "bg-emerald-500 text-white"
-                  : i === currentIdx
-                    ? "border border-emerald-400 text-emerald-400"
-                    : "border border-slate-600 text-slate-500"
-              }`}
-            >
-              {i < currentIdx ? <CheckCircle className="w-3 h-3" /> : i + 1}
-            </span>
-            <span className="hidden sm:inline">{s.label}</span>
+    <div className="flex items-center flex-1 min-w-0">
+      {steps.map((s, i) => {
+        const Icon = s.icon;
+        const done = i < currentIdx;
+        const active = i === currentIdx;
+        const upcoming = i > currentIdx;
+
+        return (
+          <div key={s.key} className="flex items-center flex-1 last:flex-none">
+            <div className="flex items-center gap-2 shrink-0">
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                  done
+                    ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]"
+                    : active
+                      ? "bg-emerald-500/20 border-2 border-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.3)]"
+                      : "bg-slate-800 border border-slate-600"
+                }`}
+              >
+                {done ? (
+                  <CheckCircle className="w-4 h-4 text-white" />
+                ) : (
+                  <Icon className={`w-4 h-4 ${active ? "text-emerald-400" : "text-slate-500"}`} />
+                )}
+              </div>
+              <div className="hidden lg:block">
+                <p
+                  className={`text-xs font-semibold leading-tight ${
+                    done ? "text-emerald-400" : active ? "text-white" : "text-slate-500"
+                  }`}
+                >
+                  {s.label}
+                </p>
+                <p className="text-[10px] leading-tight text-slate-500">
+                  {done ? "Complete" : active ? "In progress" : `Step ${i + 1}`}
+                </p>
+              </div>
+            </div>
+            {i < steps.length - 1 && (
+              <div className="flex-1 mx-2 h-0.5 rounded-full overflow-hidden min-w-[16px]">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    done ? "bg-emerald-500" : "bg-slate-700"
+                  }`}
+                />
+              </div>
+            )}
           </div>
-          {i < steps.length - 1 && (
-            <div className="w-6 h-px bg-slate-700" />
-          )}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -765,10 +786,12 @@ function DesignPanel({
 
       {/* Demand Summary */}
       <div className="grid grid-cols-2 gap-3">
-        <MetricCard label="Households" value={`${d.households}`} />
+        <MetricCard label="Round 1 HH" value={`${d.households} of ${d.total_settlement_households}`} />
+        <MetricCard label="Coverage" value={`${(d.coverage_pct * 100).toFixed(0)}%`} />
         <MetricCard label="Demand Tier" value={`Tier ${d.demand_tier}`} />
-        <MetricCard label="Daily Demand" value={`${d.daily_energy_kwh.toFixed(0)} kWh`} />
         <MetricCard label="Peak Load" value={`${d.peak_demand_kw.toFixed(1)} kW`} />
+        <MetricCard label="Residential" value={`${(d.daily_energy_kwh - d.productive_use_kwh_day).toFixed(0)} kWh/d`} />
+        <MetricCard label="Productive Use" value={`${d.productive_use_kwh_day.toFixed(0)} kWh/d`} />
       </div>
 
       {/* Solar Resource */}
@@ -996,9 +1019,9 @@ function ReportPanel({
   site: { lat: number; lng: number };
   onBack: () => void;
 }) {
-  const [downloading, setDownloading] = useState<"pdf" | "excel" | "pfs" | "concession" | null>(null);
+  const [downloading, setDownloading] = useState<"pdf" | "excel" | "pfs" | "pfs-summary" | "concession" | null>(null);
 
-  const handleDownload = async (format: "pdf" | "excel" | "pfs" | "concession") => {
+  const handleDownload = async (format: "pdf" | "excel" | "pfs" | "pfs-summary" | "concession") => {
     setDownloading(format);
     try {
       const blob = await downloadReport(
@@ -1013,9 +1036,11 @@ function ReportPanel({
           ? "moz-financial-model.xlsx"
           : format === "pfs"
             ? `${result.site.name || "site"}-PFS.docx`
-            : format === "concession"
-              ? `${result.site.name || "site"}-ARENE-concession.json`
-              : "moz-report.html";
+            : format === "pfs-summary"
+              ? `${result.site.name || "site"}-Summary.docx`
+              : format === "concession"
+                ? `${result.site.name || "site"}-ARENE-concession.json`
+                : "moz-report.html";
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -1216,15 +1241,20 @@ function ReportPanel({
             {downloading === "pdf" ? "Generating..." : "HTML Report"}
           </button>
           <button onClick={() => handleDownload("pfs")} disabled={downloading === "pfs"} className="flex-1 rounded-lg bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-400 disabled:opacity-50 transition">
-            {downloading === "pfs" ? "Generating..." : "PFS (.docx)"}
+            {downloading === "pfs" ? "Generating..." : "Full PFS (.docx)"}
           </button>
+          <button onClick={() => handleDownload("pfs-summary")} disabled={downloading === "pfs-summary"} className="flex-1 rounded-lg bg-violet-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-violet-400 disabled:opacity-50 transition">
+            {downloading === "pfs-summary" ? "Generating..." : "5-Page Summary"}
+          </button>
+        </div>
+        <div className="flex gap-3">
           <button onClick={() => handleDownload("excel")} disabled={downloading === "excel"} className="flex-1 rounded-lg bg-blue-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-400 disabled:opacity-50 transition">
             {downloading === "excel" ? "Generating..." : "Excel"}
           </button>
+          <button onClick={() => handleDownload("concession")} disabled={downloading === "concession"} className="flex-1 rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-amber-400 disabled:opacity-50 transition">
+            {downloading === "concession" ? "Generating..." : "ARENE Concession"}
+          </button>
         </div>
-        <button onClick={() => handleDownload("concession")} disabled={downloading === "concession"} className="w-full rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-amber-500 disabled:opacity-50 transition">
-          {downloading === "concession" ? "Generating..." : "ARENE Concession Data Sheet"}
-        </button>
       </div>
 
       <button onClick={onBack} className="w-full flex items-center justify-center gap-2 rounded-lg bg-slate-700 px-4 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-600 transition">

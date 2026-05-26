@@ -32,15 +32,15 @@
   "distribution": {
     "pole_cost_usd": 85,
     "pole_span_m": 40,
-    "service_drop_cost_usd": 175,
+    "service_drop_cost_usd": 120,
     "meter_cost_usd": 45,
-    "conductor_cost_abc35_per_km": 3800,
-    "conductor_cost_abc16_per_km": 2200,
+    "conductor_cost_aac50_per_km": 1000,
+    "conductor_cost_aac35_per_km": 750,
     "conductor_cost_service_per_km": 1400,
-    "protection_pct": 0.06,
-    "construction_labour_base_pct": 0.30,
-    "soft_cost_pct": 0.12,
-    "_source": "AMDA 2023 benchmark: LV distribution $350-800/connection. Conductor pricing from East Africa procurement 2023-2024. Pole costs reflect treated wood in Mozambique context"
+    "protection_pct": 0.05,
+    "construction_labour_pct": 0.18,
+    "soft_cost_pct": 0.10,
+    "_source": "ESMAP 2022: distribution median $250/customer (p25=$163, p75=$331), 26-27% of total CAPEX. SSA planning range $300-500/customer. Service drop reflects standardized ready-board approach. Labour/soft costs calibrated so terrain is applied once (line length) not twice"
   },
 
   "opex": {

@@ -58,6 +58,20 @@ def run_full_analysis(
 
     demand, hourly_demand = estimate_demand(cluster, overrides)
 
+    # Run PUE analysis early so its demand feeds into system sizing
+    productive_use = _safe_call(analyze_productive_use, cluster, demand)
+    pue_kwh_day = 0.0
+    if productive_use:
+        pue_kwh_day = productive_use.total_productive_demand_kwh_day
+        demand.productive_use_kwh_day = pue_kwh_day
+        # Add PUE demand to residential for combined sizing
+        combined_daily = demand.daily_energy_kwh + pue_kwh_day
+        scale = combined_daily / demand.daily_energy_kwh if demand.daily_energy_kwh > 0 else 1.0
+        demand.daily_energy_kwh = round(combined_daily, 2)
+        demand.annual_energy_kwh = round(combined_daily * 365, 1)
+        demand.peak_demand_kw = round(demand.peak_demand_kw * scale, 2)
+        hourly_demand = [h * scale for h in hourly_demand]
+
     sizing = size_system(
         cluster, demand, solar_resource, hourly_demand, hourly_solar, overrides
     )
@@ -70,11 +84,6 @@ def run_full_analysis(
     financial = run_financial_model(sizing, demand, distribution, carbon, overrides)
 
     grid_risk = assess_grid_risk(cluster, financial)
-
-    # ── New TOR-required engines ──────────────────────────────────
-    productive_use = _safe_call(
-        analyze_productive_use, cluster, demand
-    )
 
     ess = _safe_call(
         screen_ess, cluster, sizing, latitude, longitude

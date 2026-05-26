@@ -10,10 +10,13 @@ from app.schemas.site import SiteCoordinates, ClusterInfo, SuitabilityScreening
 
 class DemandEstimate(BaseModel):
     households: int
+    total_settlement_households: int = 0
+    coverage_pct: float = 0.50
     demand_tier: int = Field(ge=1, le=5)
     daily_energy_kwh: float
     peak_demand_kw: float
     annual_energy_kwh: float
+    productive_use_kwh_day: float = 0.0
     load_profile_kw: list[float] = Field(description="24-hour load profile (kW per hour)")
     persons_per_hh: float
 
