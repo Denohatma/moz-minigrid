@@ -12,9 +12,14 @@ Author: Moz Mini-Grid Platform
 
 from __future__ import annotations
 
+import io
 import math
 from datetime import date
 from typing import Optional
+
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
 from docx import Document
 from docx.shared import Inches, Pt, Cm, RGBColor, Emu
@@ -40,6 +45,8 @@ _WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 _TABLE_HEADER_BG = "2F855A"
 _TABLE_ALT_ROW_BG = "F0FAF4"
 _TABLE_BORDER_COLOR = "CBD5E0"
+
+_PIE_COLORS = ['#2F855A', '#38A169', '#48BB78', '#68D391', '#9AE6B4', '#C6F6D5', '#F0FFF4']
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -270,6 +277,177 @@ def _set_table_borders(table):
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# Chart helper functions (matplotlib)
+# ═══════════════════════════════════════════════════════════════════════
+def _add_pie_chart(doc: Document, labels: list, values: list, title: str = ""):
+    """Generate a pie chart PNG in memory and insert it centered in the document."""
+    if not labels or not values or all(v == 0 for v in values):
+        _placeholder(doc, "[Pie chart data not available]")
+        return
+
+    # Filter out zero-value entries
+    filtered = [(l, v) for l, v in zip(labels, values) if v and v > 0]
+    if not filtered:
+        _placeholder(doc, "[Pie chart data not available]")
+        return
+    f_labels, f_values = zip(*filtered)
+
+    colors = _PIE_COLORS[:len(f_labels)]
+    while len(colors) < len(f_labels):
+        colors = colors + _PIE_COLORS
+
+    fig, ax = plt.subplots(figsize=(6, 4))
+    wedges, texts, autotexts = ax.pie(
+        f_values, labels=f_labels, autopct='%1.1f%%',
+        colors=colors[:len(f_labels)], startangle=140,
+        textprops={'fontsize': 8}
+    )
+    for at in autotexts:
+        at.set_fontsize(7)
+        at.set_color('white')
+        at.set_fontweight('bold')
+    if title:
+        ax.set_title(title, fontsize=11, fontweight='bold', color='#2F855A', pad=12)
+    fig.tight_layout()
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+    plt.close(fig)
+    buf.seek(0)
+
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = p.add_run()
+    run.add_picture(buf, width=Inches(4.5))
+    buf.close()
+
+
+def _add_line_chart(doc: Document, x_values: list, y_values: list,
+                    x_label: str, y_label: str, title: str):
+    """Generate a filled area chart for load profiles and insert it centered."""
+    if not x_values or not y_values or len(x_values) == 0:
+        _placeholder(doc, "[Line chart data not available]")
+        return
+
+    fig, ax = plt.subplots(figsize=(7, 3.5))
+    ax.fill_between(x_values, y_values, alpha=0.3, color='#2F855A')
+    ax.plot(x_values, y_values, color='#2F855A', linewidth=2)
+    ax.set_xlabel(x_label, fontsize=9, color='#4A5568')
+    ax.set_ylabel(y_label, fontsize=9, color='#4A5568')
+    if title:
+        ax.set_title(title, fontsize=11, fontweight='bold', color='#2F855A', pad=10)
+    ax.grid(True, alpha=0.3, linestyle='--')
+    ax.set_xlim(min(x_values), max(x_values))
+    ax.set_ylim(bottom=0)
+    ax.tick_params(axis='both', labelsize=8)
+    fig.tight_layout()
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+    plt.close(fig)
+    buf.seek(0)
+
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = p.add_run()
+    run.add_picture(buf, width=Inches(5.5))
+    buf.close()
+
+
+def _add_site_map(doc: Document, lat: float, lon: float, site_name: str):
+    """Generate a simple location indicator plot showing the site coordinates."""
+    if lat == 0 and lon == 0:
+        _placeholder(doc, "[Site map data not available -- coordinates missing]")
+        return
+
+    fig, ax = plt.subplots(figsize=(6.5, 4))
+
+    # Draw a simple context frame with Mozambique outline approximation
+    moz_lons = [30.2, 40.8, 40.8, 35.5, 34.0, 30.2, 30.2]
+    moz_lats = [-10.5, -10.5, -26.9, -26.9, -24.0, -15.5, -10.5]
+    ax.plot(moz_lons, moz_lats, color='#A0AEC0', linewidth=1.5, linestyle='--', alpha=0.6)
+    ax.fill(moz_lons, moz_lats, alpha=0.05, color='#2F855A')
+
+    # Plot the site
+    ax.plot(abs(lon), lat if lat < 0 else -abs(lat), 'o', color='#2F855A',
+            markersize=14, markeredgecolor='#22543D', markeredgewidth=2, zorder=5)
+    ax.annotate(
+        f'{site_name}\n({abs(lat):.4f} S, {abs(lon):.4f} E)',
+        xy=(abs(lon), lat if lat < 0 else -abs(lat)),
+        xytext=(15, 15), textcoords='offset points',
+        fontsize=9, fontweight='bold', color='#1A202C',
+        arrowprops=dict(arrowstyle='->', color='#4A5568', lw=1.2),
+        bbox=dict(boxstyle='round,pad=0.4', facecolor='#F0FFF4', edgecolor='#2F855A', alpha=0.9)
+    )
+
+    ax.set_xlabel('Longitude (E)', fontsize=9, color='#4A5568')
+    ax.set_ylabel('Latitude (S)', fontsize=9, color='#4A5568')
+    ax.set_title(f'Site Location -- {site_name}', fontsize=11, fontweight='bold',
+                 color='#2F855A', pad=10)
+    ax.grid(True, alpha=0.2, linestyle='--')
+    ax.tick_params(axis='both', labelsize=8)
+    fig.tight_layout()
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+    plt.close(fig)
+    buf.seek(0)
+
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = p.add_run()
+    run.add_picture(buf, width=Inches(5.0))
+    buf.close()
+
+
+def _add_process_flow(doc: Document, steps: list[str], title: str = ""):
+    """Generate a simple process flow chart with labeled boxes connected by arrows."""
+    if not steps:
+        _placeholder(doc, "[Process flow data not available]")
+        return
+
+    n = len(steps)
+    fig_width = max(7, n * 1.1)
+    fig, ax = plt.subplots(figsize=(fig_width, 2.2))
+    ax.set_xlim(-0.5, n - 0.5)
+    ax.set_ylim(-0.8, 0.8)
+    ax.axis('off')
+
+    box_w = 0.7
+    box_h = 0.5
+
+    for i, step in enumerate(steps):
+        # Draw box
+        rect = plt.Rectangle((i - box_w / 2, -box_h / 2), box_w, box_h,
+                              facecolor='#F0FFF4', edgecolor='#2F855A',
+                              linewidth=1.5, zorder=3)
+        ax.add_patch(rect)
+        # Text inside box
+        ax.text(i, 0, step, ha='center', va='center', fontsize=6.5,
+                fontweight='bold', color='#1A202C', wrap=True, zorder=4)
+        # Arrow to next box
+        if i < n - 1:
+            ax.annotate('', xy=(i + 1 - box_w / 2, 0), xytext=(i + box_w / 2, 0),
+                        arrowprops=dict(arrowstyle='->', color='#2F855A', lw=1.8),
+                        zorder=2)
+
+    if title:
+        ax.set_title(title, fontsize=10, fontweight='bold', color='#2F855A', pad=8)
+    fig.tight_layout()
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+    plt.close(fig)
+    buf.seek(0)
+
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = p.add_run()
+    run.add_picture(buf, width=Inches(6.0))
+    buf.close()
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # Main PFS Generation Function
 # ═══════════════════════════════════════════════════════════════════════
 def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
@@ -323,6 +501,9 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
     pop_growth = 0.028
     demand_growth = 0.03
 
+    # Persons per household
+    persons_per_hh = population / max(households, 1) if households > 0 else 5
+
     # ══════════════════════════════════════════════════════════════
     # COVER PAGE
     # ══════════════════════════════════════════════════════════════
@@ -341,7 +522,7 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
     _centered(doc, "Republic of Mozambique", size=11, color=_GREY)
     _blank(doc, 2)
     _centered(doc, f"Date: {month_year}", size=11, color=_SLATE)
-    _centered(doc, "Version: 1.0 — Desktop Pre-Feasibility", size=11, color=_SLATE)
+    _centered(doc, "Version: 1.0 -- Desktop Pre-Feasibility", size=11, color=_SLATE)
     _blank(doc, 2)
     _centered(doc, "CONFIDENTIAL", bold=True, size=12, color=_RED)
     p = doc.add_paragraph()
@@ -378,13 +559,13 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
         recommendation = "PROCEED WITH CONDITIONS"
         rec_color = RGBColor(0xD6, 0x9E, 0x2E)
     elif irr > 0 and payback < 25:
-        recommendation = "CONDITIONAL GO — BLENDED FINANCE REQUIRED"
+        recommendation = "CONDITIONAL GO -- BLENDED FINANCE REQUIRED"
         rec_color = RGBColor(0xD6, 0x9E, 0x2E)
     elif subsidy_gap_pct < 80:
         recommendation = "BUNDLE / CLUSTER FOR VIABILITY"
         rec_color = RGBColor(0xED, 0x89, 0x36)
     else:
-        recommendation = "HOLD — REASSESS WITH FIELD DATA"
+        recommendation = "HOLD -- REASSESS WITH FIELD DATA"
         rec_color = _RED
 
     # Concession model
@@ -435,49 +616,81 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
     # ══════════════════════════════════════════════════════════════
     _h1(doc, "1. Executive Summary")
 
-    # 1.1 Project Overview
-    _h2(doc, "1.1 Project Overview")
     ann_gen_mwh = (_g(sizing, "annual_generation_kwh") or 0) / 1000
+    pu_demand_pct = _g(productive_use, "productive_demand_pct") or 0
+    battery_usable = _g(sizing, "battery_kwh_usable") or 0
+    unmet_pct = _g(sizing, "unmet_energy_pct") or 0
+    ghi = _g(solar_resource, "annual_ghi_kwh_m2") or _g(cluster, "ghi_kwh_m2_year") or 0
+    peak_kw = _g(demand, "peak_demand_kw") or 0
+
+    # Identify top PUE sectors
+    sectors = _g(productive_use, "sectors") or []
+    top_sectors = []
+    for sec in sectors:
+        rel = (sec.get("relevance", "") if isinstance(sec, dict) else getattr(sec, "relevance", "")).lower()
+        name = sec.get("sector", "") if isinstance(sec, dict) else getattr(sec, "sector", "")
+        if rel in ("high", "very high", "medium-high") and name:
+            top_sectors.append(name)
+    top_sectors_text = ", ".join(top_sectors[:4]) if top_sectors else "agriculture, small enterprise, and community services"
+
+    first_deployment_people = int(households * persons_per_hh)
+
+    # Project overview paragraph
     _para(doc,
           f"The {site_name} Solar PV Mini-Grid is a proposed rural electrification project "
           f"located in {district}, {province}, Mozambique, centred at approximately "
-          f"{abs(lat):.4f} S, {abs(lon):.4f} E. This pre-feasibility study assesses a "
-          f"{pv_kwp:.0f} kWp isolated solar PV mini-grid designed to supply first-time "
-          f"electricity access to {'an unelectrified' if not has_nightlight else 'a partially electrified'} "
-          f"settlement with an estimated {households:,} connections. The system is designed as a "
-          f"productive-use-led (PUE-led) mini-grid, where productive demand anchors the "
-          f"business case and drives system utilisation.")
+          f"{abs(lat):.4f} S, {abs(lon):.4f} E. The settlement has an estimated population of "
+          f"{population:,} people, of which approximately {first_deployment_people:,} persons "
+          f"({households:,} households at an average of {persons_per_hh:.1f} persons per household) "
+          f"are targeted for connection in the first deployment round. This pre-feasibility study "
+          f"assesses a {pv_kwp:.0f} kWp isolated solar PV mini-grid with {battery_usable:.0f} kWh "
+          f"of usable battery storage, designed to supply first-time electricity access to "
+          f"{'an unelectrified' if not has_nightlight else 'a partially electrified'} settlement. "
+          f"The system is conceived as a productive-use-led (PUE-led) mini-grid in which productive "
+          f"demand -- targeting sectors including {top_sectors_text} -- anchors the business case "
+          f"and drives system utilisation beyond basic residential consumption.")
 
-    # 1.2 Strategic Rationale
-    _h2(doc, "1.2 Strategic Rationale")
-    pu_demand_pct = _g(productive_use, "productive_demand_pct") or 0
+    # Strategic rationale paragraph
     _para(doc,
           f"The project is anchored in the Government of Mozambique's commitment to universal "
           f"energy access under the PAREP framework and aligns with MIREME/ARENE's regulatory "
           f"framework for isolated mini-grid concessions under Decree 93/2021. The PUE-led design "
           f"targets productive demand representing {pu_demand_pct:.0f}% of total load, ensuring "
-          f"system utilisation supports financial viability. The project contributes to "
-          f"Mozambique's NDC commitments through displaced diesel generation and provides a "
-          f"platform for local economic development through productive use of energy.")
+          f"system utilisation supports financial viability from commissioning through the concession "
+          f"period. By centring productive use in the demand model, the project avoids the common "
+          f"failure mode of residential-only mini-grids where low load factors undermine tariff "
+          f"affordability. The project contributes to Mozambique's NDC commitments through displaced "
+          f"diesel generation and provides a platform for local economic development through "
+          f"productive use of energy, with the potential to create sustainable livelihoods and "
+          f"strengthen rural value chains.")
 
-    # 1.3 Main Findings
-    _h2(doc, "1.3 Main Findings")
-    battery_usable = _g(sizing, "battery_kwh_usable") or 0
-    unmet_pct = _g(sizing, "unmet_energy_pct") or 0
-    ghi = _g(solar_resource, "annual_ghi_kwh_m2") or _g(cluster, "ghi_kwh_m2_year") or 0
-    _bullet(doc, f"Settlement has {population:,} people / {households:,} potential connections, "
-                 f"classified as {'unelectrified' if not has_nightlight else 'partially electrified'}.")
-    _bullet(doc, f"Solar resource: {ghi:,.0f} kWh/m2/year GHI — strong for fixed-tilt PV.")
-    _bullet(doc, f"System sizing: {pv_kwp:.0f} kWp PV, {battery_usable:.0f} kWh usable battery, "
-                 f"generating {ann_gen_mwh:.0f} MWh/year with {unmet_pct:.1f}% unmet demand.")
-    _bullet(doc, f"Total CAPEX: {_usd(total_capex)} ({_fmt(_g(financial, 'capex_per_wp'), 'USD {:.2f}/Wp')}).")
-    _bullet(doc, f"Project IRR: {irr:.1f}%, LCOE: {_usd_kwh(lcoe)}, payback: {payback:.1f} years.")
-    _bullet(doc, f"Productive use demand: {pu_demand_pct:.0f}% of total, with identified anchor loads.")
-    _bullet(doc, f"Grid-arrival risk: {_g(grid_risk, 'risk_level', default='unknown').upper()} "
-                 f"({dist_mv:.1f} km to MV grid).")
+    # Main Findings table
+    _table_caption(doc, "Table 1-1: Main findings summary")
+    findings_data = [
+        ["Finding Area", "Key Result"],
+        ["Settlement",
+         f"{population:,} people / {households:,} potential connections, "
+         f"classified as {'unelectrified' if not has_nightlight else 'partially electrified'}"],
+        ["Solar Resource",
+         f"{ghi:,.0f} kWh/m2/year GHI -- strong for fixed-tilt PV development"],
+        ["System Sizing",
+         f"{pv_kwp:.0f} kWp PV, {battery_usable:.0f} kWh usable battery, "
+         f"generating {ann_gen_mwh:.0f} MWh/year with {unmet_pct:.1f}% unmet demand"],
+        ["CAPEX",
+         f"{_usd(total_capex)} ({_fmt(_g(financial, 'capex_per_wp'), 'USD {:.2f}/Wp')})"],
+        ["Financial Returns",
+         f"Project IRR: {irr:.1f}%, LCOE: {_usd_kwh(lcoe)}, payback: {payback:.1f} years"],
+        ["PUE",
+         f"Productive use demand: {pu_demand_pct:.0f}% of total, with identified anchor loads "
+         f"in {top_sectors_text}"],
+        ["Grid Risk",
+         f"{_g(grid_risk, 'risk_level', default='unknown').upper()} "
+         f"({dist_mv:.1f} km to MV grid)"],
+    ]
+    _add_table(doc, findings_data)
 
-    # 1.4 Recommendation
-    _h2(doc, "1.4 Recommendation")
+    # Recommendation paragraph
+    _blank(doc)
     p = doc.add_paragraph()
     run = p.add_run(f"DECISION: {recommendation}")
     run.bold = True
@@ -486,95 +699,94 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
 
     if irr > 0 and payback < 25:
         _para(doc,
-              f"{site_name} is a credible rural electrification opportunity. The project should "
-              f"advance to full feasibility, prioritising: (i) a household/enterprise demand and "
-              f"willingness-to-pay survey; (ii) productive use anchor verification; "
-              f"(iii) site micro-siting and land verification; and (iv) confirmation of the "
-              f"off-grid designation with ARENE/FUNAE.")
+              f"{site_name} is a credible rural electrification opportunity that merits advancement "
+              f"to full feasibility. The project should prioritise: (i) a household and enterprise "
+              f"demand and willingness-to-pay survey to validate consumption assumptions; "
+              f"(ii) productive use anchor verification through direct engagement with prospective "
+              f"anchor customers and confirmation of equipment supply chains; "
+              f"(iii) site micro-siting and land verification including DUAT process initiation; "
+              f"and (iv) confirmation of the off-grid designation with ARENE/FUNAE to secure the "
+              f"regulatory pathway for an isolated mini-grid concession.")
     else:
         _para(doc,
               f"{site_name} presents a challenging but potentially worthwhile electrification "
               f"opportunity requiring significant concessional finance. The project should be "
               f"structured as a blended-finance investment from the outset, targeting DFI funding, "
               f"results-based finance, or climate access facilities. Field validation is required "
-              f"before committing capital.")
+              f"before committing capital, with particular attention to productive use demand "
+              f"verification and anchor customer contracting to determine whether the business "
+              f"case can be sufficiently de-risked.")
 
     doc.add_page_break()
 
     # ══════════════════════════════════════════════════════════════
-    # 2. SITE AND CONCESSION AREA
+    # 2. SITE AND CONCESSION AREA (merged with old Section 3)
     # ══════════════════════════════════════════════════════════════
     _h1(doc, "2. Site and Concession Area")
 
-    # 2.1 Administrative Location
-    _h2(doc, "2.1 Administrative Location")
-    _table_caption(doc, "Table 2-1: Administrative location")
+    # Site map
+    _add_site_map(doc, lat, lon, site_name)
+
+    # Administrative location as prose
     urban_idx = min(_g(cluster, "is_urban") or 0, 2)
     urban_label = ["Rural", "Peri-urban", "Urban"][urban_idx]
-    loc_data = [
-        ["Parameter", "Value", "Source"],
-        ["Settlement Name", site_name, "DRE Atlas / INGC"],
-        ["Province", province, "Administrative"],
-        ["District", district, "Administrative"],
-        ["Administrative Post", _g(cluster, "nearest_hub_name") or "[To be confirmed]", ""],
-        ["Reference Latitude", f"{abs(lat):.4f} S", "WGS84"],
-        ["Reference Longitude", f"{abs(lon):.4f} E", "WGS84"],
-        ["Elevation", f"{_g(cluster, 'elevation_m') or '--'} m" if _g(cluster, "elevation_m") else "[To be confirmed]", "DEM"],
-        ["Settlement Classification", urban_label, "DRE Atlas"],
-        ["Concession Boundary", "[To be defined during full feasibility]", ""],
-    ]
-    _add_table(doc, loc_data)
+    elevation_m = _g(cluster, "elevation_m")
+    elevation_text = f" at an elevation of approximately {elevation_m} metres above sea level" if elevation_m else ""
 
-    # 2.2 Settlement and Population Profile
-    _h2(doc, "2.2 Settlement and Population Profile")
+    _para(doc,
+          f"{site_name} is located in {district} district, {province} province, Mozambique, "
+          f"within the administrative post of {_g(cluster, 'nearest_hub_name') or '[to be confirmed]'}. "
+          f"The settlement centroid is positioned at {abs(lat):.4f} S, {abs(lon):.4f} E (WGS84)"
+          f"{elevation_text}. The settlement is classified as {urban_label.lower()} under the "
+          f"DRE Atlas classification system. The concession boundary is to be formally defined "
+          f"during the full feasibility phase in coordination with MIREME and local authorities.")
+
+    # Settlement and population profile as prose
     area = _g(cluster, "area_km2") or 0
     num_buildings = _g(cluster, "num_buildings") or 0
+    pop_y5 = int(population * (1 + pop_growth) ** 5)
+    pop_y10 = int(population * (1 + pop_growth) ** 10)
+    pop_y15 = int(population * (1 + pop_growth) ** 15)
+    pop_y20 = int(population * (1 + pop_growth) ** 20)
+    hh_y5 = int(households * (1 + pop_growth) ** 5)
+    hh_y10 = int(households * (1 + pop_growth) ** 10)
+    hh_y15 = int(households * (1 + pop_growth) ** 15)
+    hh_y20 = int(households * (1 + pop_growth) ** 20)
+
     _para(doc,
           f"The settlement has an estimated population of {population:,} within an area of "
-          f"{area:.2f} km2. Building count from satellite imagery is {num_buildings:,} structures.")
+          f"{area:.2f} km2, with {num_buildings:,} structures identified from satellite imagery. "
+          f"The estimated household count is {households:,}, yielding an average of "
+          f"{persons_per_hh:.1f} persons per household. Applying a population growth rate of "
+          f"2.8% per annum (consistent with Mozambique national averages), the population is "
+          f"projected to reach {pop_y5:,} by Year 5, {pop_y10:,} by Year 10, {pop_y15:,} "
+          f"by Year 15, and {pop_y20:,} by Year 20. Household numbers are projected to follow "
+          f"the same trajectory, reaching {hh_y5:,} by Year 5, {hh_y10:,} by Year 10, "
+          f"{hh_y15:,} by Year 15, and {hh_y20:,} by Year 20. These growth projections are "
+          f"important for system sizing headroom and concession revenue modelling.")
 
-    _table_caption(doc, "Table 2-2: Population and household projections")
-    hh_data = [
-        ["Year", "Population", "Households", "Source"],
-        ["Year 0 (Current)", f"{population:,}", f"{households:,}", "DRE Atlas / Model"],
-        ["Year 5", f"{int(population * (1 + pop_growth) ** 5):,}",
-         f"{int(households * (1 + pop_growth) ** 5):,}", "2.8% p.a. growth"],
-        ["Year 10", f"{int(population * (1 + pop_growth) ** 10):,}",
-         f"{int(households * (1 + pop_growth) ** 10):,}", "2.8% p.a. growth"],
-        ["Year 15", f"{int(population * (1 + pop_growth) ** 15):,}",
-         f"{int(households * (1 + pop_growth) ** 15):,}", "2.8% p.a. growth"],
-        ["Year 20", f"{int(population * (1 + pop_growth) ** 20):,}",
-         f"{int(households * (1 + pop_growth) ** 20):,}", "2.8% p.a. growth"],
-    ]
-    _add_table(doc, hh_data)
-
-    # 2.3 Existing Infrastructure
-    _h2(doc, "2.3 Existing Infrastructure")
+    # Existing infrastructure as prose
     dist_road = _g(cluster, "dist_road_km") or 0
     dist_water = _g(cluster, "closest_distance_water_km")
     num_edu = _g(cluster, "num_education_facilities") or 0
     num_health = _g(cluster, "num_health_facilities") or 0
-    _table_caption(doc, "Table 2-3: Existing infrastructure assessment")
-    infra_data = [
-        ["Infrastructure", "Status", "Distance/Count", "Implication"],
-        ["Road Access", "Main road" if _g(cluster, "main_road_access") else "Secondary/track",
-         f"{dist_road:.1f} km", "Logistics planning required" if dist_road > 5 else "Reasonable access"],
-        ["MV Grid (EDM)", "Not connected", f"{dist_mv:.1f} km",
-         _g(grid_risk, "risk_label") or "Grid arrival assessment required"],
-        ["Planned Grid Extension", f"{_g(cluster, 'dist_grid_planned_km'):.1f} km" if _g(cluster, "dist_grid_planned_km") else "Not confirmed",
-         "", "Requires EDM verification"],
-        ["Telecoms", "[To be confirmed during field visit]", "", ""],
-        ["Water Source", f"{dist_water:.1f} km" if dist_water else "[To be confirmed]", "", ""],
-        ["Schools", f"{num_edu} facilit{'y' if num_edu == 1 else 'ies'}" if num_edu else "None identified",
-         "", "Anchor customer potential" if num_edu else ""],
-        ["Health Facilities", f"{num_health} facilit{'y' if num_health == 1 else 'ies'}" if num_health else "None identified",
-         "", "Priority anchor customer" if num_health else ""],
-        ["Markets", "[To be confirmed during field visit]", "", ""],
-    ]
-    _add_table(doc, infra_data)
 
-    # 2.4 Existing Energy Use
-    _h2(doc, "2.4 Existing Energy Use")
+    road_desc = "main road" if _g(cluster, "main_road_access") else "secondary road or track"
+    road_quality = "reasonable logistics access" if dist_road < 5 else "logistics planning required for equipment delivery"
+    water_text = f"The nearest identified water source is approximately {dist_water:.1f} km away." if dist_water else "Water source proximity is to be confirmed during field validation."
+
+    _para(doc,
+          f"The settlement is accessible via {road_desc} at a distance of approximately "
+          f"{dist_road:.1f} km, indicating {road_quality}. The nearest medium-voltage (MV) EDM "
+          f"grid infrastructure is {dist_mv:.1f} km away, with "
+          f"{'planned grid extension at ' + str(_g(cluster, 'dist_grid_planned_km')) + ' km' if _g(cluster, 'dist_grid_planned_km') else 'no confirmed planned grid extension'}. "
+          f"Telecoms coverage is to be confirmed during the field visit. {water_text} "
+          f"The settlement has {num_edu} education facilit{'y' if num_edu == 1 else 'ies'} and "
+          f"{num_health} health facilit{'y' if num_health == 1 else 'ies'} identified from "
+          f"geospatial data, both of which represent priority anchor customers for the mini-grid. "
+          f"Market infrastructure is to be confirmed during field validation.")
+
+    # Existing energy use
     electrified_pop = _g(cluster, "electrified_pop") or 0
     elec_pct = (electrified_pop / max(population, 1)) * 100
     _para(doc,
@@ -585,19 +797,7 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
           f"expenditure per household is estimated at USD 5-15/month (to be validated).")
     _placeholder(doc, "[Detailed energy expenditure survey required during full feasibility]")
 
-    doc.add_page_break()
-
-    # ══════════════════════════════════════════════════════════════
-    # 3. SITE SELECTION AND CLUSTER LOGIC
-    # ══════════════════════════════════════════════════════════════
-    _h1(doc, "3. Site Selection and Cluster Logic")
-
-    # 3.1 Site Screening Score
-    _h2(doc, "3.1 Site Screening Score")
-    _para(doc,
-          "The site screening score is derived from a weighted multi-criteria assessment "
-          "applied across all candidate settlements. Scores range from 1 (poor) to 5 (excellent).")
-
+    # Site selection and screening (merged from old Section 3)
     # Compute screening scores from available data
     demand_density_score = min(5, max(1, int((_g(demand, "daily_energy_kwh") or 0) / 50) + 1))
     pue_potential_score = min(5, max(1, int(pu_demand_pct / 10) + 1))
@@ -613,67 +813,60 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
     cluster_potential_score = 3  # Default
     reg_score = 4 if dist_mv > 20 else 3  # Off-grid designation easier at distance
 
-    screening_data = [
-        ["Criteria", "Score (/5)", "Weight", "Weighted Score"],
-        ["Demand Density", str(demand_density_score), "15%", f"{demand_density_score * 0.15:.2f}"],
-        ["PUE Potential", str(pue_potential_score), "20%", f"{pue_potential_score * 0.20:.2f}"],
-        ["Anchor Loads", str(anchor_score), "15%", f"{anchor_score * 0.15:.2f}"],
-        ["Grid Distance", str(grid_dist_score), "10%", f"{grid_dist_score * 0.10:.2f}"],
-        ["Accessibility", str(access_score), "10%", f"{access_score * 0.10:.2f}"],
-        ["E&S Risk", str(es_risk_score), "5%", f"{es_risk_score * 0.05:.2f}"],
-        ["Climate / Security", str(climate_score), "5%", f"{climate_score * 0.05:.2f}"],
-        ["Cluster Potential", str(cluster_potential_score), "10%", f"{cluster_potential_score * 0.10:.2f}"],
-        ["Regulatory Readiness", str(reg_score), "10%", f"{reg_score * 0.10:.2f}"],
-    ]
-    total_weighted = sum(
-        float(row[3]) for row in screening_data[1:]
+    total_weighted = (
+        demand_density_score * 0.15 +
+        pue_potential_score * 0.20 +
+        anchor_score * 0.15 +
+        grid_dist_score * 0.10 +
+        access_score * 0.10 +
+        es_risk_score * 0.05 +
+        climate_score * 0.05 +
+        cluster_potential_score * 0.10 +
+        reg_score * 0.10
     )
-    screening_data.append(["TOTAL", "", "100%", f"{total_weighted:.2f}"])
 
-    _table_caption(doc, f"Table 3-1: Site screening score -- {site_name}")
-    _add_table(doc, screening_data)
-
-    # 3.2 Cluster Rationale
-    _h2(doc, "3.2 Cluster Rationale")
     nearest_hub = _g(cluster, "nearest_hub_name")
+
     _para(doc,
+          f"{site_name} was selected through a weighted multi-criteria screening process applied "
+          f"across all candidate settlements in the region. The site achieved a composite weighted "
+          f"score of {total_weighted:.2f} out of 5.00, reflecting its performance across nine "
+          f"screening dimensions: demand density (score {demand_density_score}/5, weight 15%), "
+          f"PUE potential ({pue_potential_score}/5, 20%), anchor loads ({anchor_score}/5, 15%), "
+          f"grid distance ({grid_dist_score}/5, 10%), accessibility ({access_score}/5, 10%), "
+          f"E&S risk ({es_risk_score}/5, 5%), climate/security ({climate_score}/5, 5%), "
+          f"cluster potential ({cluster_potential_score}/5, 10%), and regulatory readiness "
+          f"({reg_score}/5, 10%). The PUE potential and anchor load criteria carry the highest "
+          f"combined weight (35%), reflecting the platform's PUE-led design philosophy. "
           f"{site_name} is identified as a standalone site "
           f"{'near ' + nearest_hub if nearest_hub else 'in ' + district} "
-          f"with potential for cluster development with neighbouring settlements. "
-          f"A cluster approach would share fixed infrastructure costs (generation plant, "
-          f"management, spare parts) across multiple sites, improving unit economics.")
-    _placeholder(doc, "[Cluster analysis to be completed with neighbouring settlement mapping during full feasibility]")
+          f"with potential for cluster development with neighbouring settlements, which would "
+          f"share fixed infrastructure costs and improve unit economics.")
 
     doc.add_page_break()
 
     # ══════════════════════════════════════════════════════════════
-    # 4. DEMAND ASSESSMENT
+    # 3. DEMAND ASSESSMENT (was Section 4)
     # ══════════════════════════════════════════════════════════════
-    _h1(doc, "4. Demand Assessment")
+    _h1(doc, "3. Demand Assessment")
 
-    # 4.1 Methodology
-    _h2(doc, "4.1 Methodology")
+    # Opening paragraph
+    total_hh = _g(demand, "total_settlement_households") or int(households / 0.5)
+    coverage_pct = _g(demand, "coverage_pct") or 0.50
+
     _para(doc,
           "Demand is estimated using a bottom-up model calibrated to the World Bank DRE Atlas "
           "for Mozambique, adjusted for settlement size, socioeconomic indicators (Relative "
           "Wealth Index), presence of social infrastructure, and productive use potential. "
           "The model applies MTF tier-based consumption profiles with adjustments for seasonal "
-          "variation and a connection ramp-up over 5 years.")
-
-    # 4.2 Round 1 Coverage
-    _h2(doc, "4.2 Round 1 Coverage (50% of Settlement)")
-    total_hh = _g(demand, "total_settlement_households") or int(households / 0.5)
-    coverage_pct = _g(demand, "coverage_pct") or 0.50
-    _para(doc,
+          "variation and a connection ramp-up over 5 years. "
           f"Round 1 system design targets {coverage_pct * 100:.0f}% of the settlement "
           f"({households:,} of an estimated {total_hh:,} total households). This phased "
-          f"approach allows initial infrastructure to be validated before full build-out. "
-          f"The generation plant is sized with headroom for demand growth and connection "
-          f"ramp-up over the first 5 years.")
+          f"approach allows initial infrastructure to be validated before full build-out, while "
+          f"the generation plant is sized with headroom for demand growth and connection "
+          f"ramp-up over the first 5 years of operation.")
 
-    # 4.3 Demand by Customer Class
-    _h2(doc, "4.3 Demand by Customer Class")
-    peak_kw = _g(demand, "peak_demand_kw") or 0
+    # Demand by Customer Class table
     pu_kwh_day = _g(demand, "productive_use_kwh_day") or _g(productive_use, "total_productive_demand_kwh_day") or 0
     residential_kwh_day = daily_energy - pu_kwh_day if daily_energy > pu_kwh_day else daily_energy * 0.7
 
@@ -698,7 +891,7 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
     year5_comm = commercial_annual * (1 + demand_growth) ** 5
 
     num_anchors = len(_g(productive_use, "anchors") or [])
-    _table_caption(doc, "Table 4-1: Demand by customer class")
+    _table_caption(doc, "Table 3-1: Demand by customer class")
     class_data = [
         ["Customer Class", "Connections", "Year-1 (kWh/yr)", "Year-5 (kWh/yr)", "Peak (kW)", "Confidence"],
         ["Residential", f"{max(1, households - num_anchors - 5):,}", f"{residential_annual:,.0f}",
@@ -716,37 +909,56 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
     ]
     _add_table(doc, class_data)
 
-    # 4.4 Load Profile
-    _h2(doc, "4.4 Load Profile")
+    _para(doc,
+          f"The demand breakdown reveals that residential consumption accounts for "
+          f"{residential_annual / max(annual_energy, 1) * 100:.0f}% of Year-1 energy, while "
+          f"productive use contributes {productive_annual / max(annual_energy, 1) * 100:.0f}%. "
+          f"The productive use share is projected to grow faster than residential demand (5% vs "
+          f"3% per annum) as PUE uptake accelerates, reaching "
+          f"{year5_pu / max(year5_energy, 1) * 100:.0f}% of total demand by Year 5. "
+          f"Commercial and public institution demand is relatively modest but stable, providing "
+          f"baseload revenue certainty. The confidence grades reflect that residential counts "
+          f"are satellite-derived (Grade C) while productive use estimates require field "
+          f"validation (Grade C-D).")
+
+    # Load Profile CHART
     load_profile = _g(demand, "load_profile_kw") or []
-    if load_profile:
+    if load_profile and len(load_profile) >= 24:
+        _table_caption(doc, "Figure 3-1: 24-hour load profile (kW)")
+        x_hours = list(range(24))
+        y_load = [load_profile[h] if h < len(load_profile) else 0 for h in range(24)]
+        _add_line_chart(doc, x_hours, y_load, "Hour of Day", "Load (kW)",
+                        f"{site_name} -- Estimated 24-Hour Load Profile")
+
+        # Find peak hours
+        max_load = max(y_load)
+        peak_hour = y_load.index(max_load)
+        morning_peak = max(y_load[5:10])
+        evening_peak = max(y_load[17:22])
+        daytime_avg = sum(y_load[8:17]) / 9 if len(y_load) >= 17 else 0
+
         _para(doc,
-              f"The 24-hour load profile shows peak demand of {peak_kw:.1f} kW occurring in the "
-              f"evening hours (18:00-21:00), with a secondary morning peak. Daytime load is "
-              f"driven primarily by productive use activities.")
-        _table_caption(doc, "Table 4-2: Hourly load profile (kW)")
-        # Show as two-column table for compactness
-        lp_data = [["Hour", "Load (kW)", "Hour", "Load (kW)"]]
-        for h in range(12):
-            h2 = h + 12
-            lp_data.append([
-                f"{h:02d}:00", f"{load_profile[h]:.2f}" if h < len(load_profile) else "--",
-                f"{h2:02d}:00", f"{load_profile[h2]:.2f}" if h2 < len(load_profile) else "--",
-            ])
-        _add_table(doc, lp_data, small=True)
+              f"The load profile indicates a primary evening peak of {evening_peak:.2f} kW "
+              f"occurring between 18:00 and 21:00, driven predominantly by residential lighting, "
+              f"phone charging, and entertainment loads. A secondary morning peak of "
+              f"{morning_peak:.2f} kW occurs between 05:00 and 09:00 as households prepare for "
+              f"the day. Daytime load averages {daytime_avg:.2f} kW (08:00-17:00), driven "
+              f"primarily by productive use activities including agricultural processing, "
+              f"commercial refrigeration, and institutional consumption. The PUE-led design "
+              f"specifically targets daytime demand to improve system economics by increasing "
+              f"the solar-direct fraction and reducing battery cycling requirements.")
     else:
-        _placeholder(doc, "[Load profile data not available — to be generated from demand model]")
+        _placeholder(doc, "[Load profile data not available -- to be generated from demand model]")
 
     _para(doc, "Seasonal variation: Demand is expected to peak in the dry season (May-October) "
                "when agricultural processing activity is highest and temperatures are moderate. "
                "Wet season (November-April) may see reduced productive demand but increased "
                "residential cooling loads in some areas.")
 
-    # 4.5 Demand Scenarios
-    _h2(doc, "4.5 Demand Scenarios")
+    # Demand Scenarios table
     conservative_energy = annual_energy * 0.75
     growth_energy = annual_energy * 1.30
-    _table_caption(doc, "Table 4-3: Demand scenarios")
+    _table_caption(doc, "Table 3-2: Demand scenarios")
     scenario_data = [
         ["Scenario", "Year-1 (kWh/yr)", "Year-5 (kWh/yr)", "Assumptions"],
         ["Conservative (-25%)", f"{conservative_energy:,.0f}",
@@ -760,31 +972,41 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
     ]
     _add_table(doc, scenario_data)
 
-    # 4.6 Evidence Grade
-    _h2(doc, "4.6 Evidence Grade per Demand Item")
-    _table_caption(doc, "Table 4-4: Evidence grading")
-    evidence_data = [
-        ["Demand Component", "Evidence Grade", "Basis"],
-        ["Household count", "B", "Satellite imagery via DRE Atlas"],
-        ["Per-household consumption", "C", "Modelled from MTF tier + RWI"],
-        ["Productive use demand", "C-D", "Sector model, not field-verified"],
-        ["Anchor load demand", "D", "Assumption-based, requires contracts"],
-        ["Public institution demand", "C", "Facility presence confirmed, load assumed"],
-        ["Load profile shape", "C", "Generic Mozambique rural profile"],
-        ["Demand growth rate", "D", "National average assumption (3% p.a.)"],
-    ]
-    _add_table(doc, evidence_data)
+    _para(doc,
+          f"The three demand scenarios bound the range of plausible outcomes. The conservative "
+          f"scenario assumes slow connection ramp-up and limited productive use uptake, yielding "
+          f"{conservative_energy:,.0f} kWh in Year 1. The base case represents the design "
+          f"assumption with 50% settlement coverage and moderate PUE growth. The growth scenario "
+          f"reflects successful demand stimulation with strong PUE activation, reaching "
+          f"{growth_energy:,.0f} kWh in Year 1 and growing at 5% per annum. System sizing targets "
+          f"the base case with sufficient headroom to serve the growth scenario without immediate "
+          f"capacity expansion.")
 
-    _para(doc, "Evidence grading legend: A = Field verified; B = Survey-calibrated; "
-               "C = Modelled from secondary data; D = Assumption; E = Unknown.",
-          italic=True, size=9, color=_GREY)
+    # Evidence grade as flowing paragraph
+    _para(doc,
+          f"Household count data (Grade B) is derived from satellite imagery via the DRE Atlas, "
+          f"providing reasonable accuracy for building identification but subject to classification "
+          f"errors between residential and non-residential structures. Per-household consumption "
+          f"(Grade C) is modelled from MTF tier classification and Relative Wealth Index, "
+          f"calibrated against regional survey data but not field-verified at this site. "
+          f"Productive use demand (Grade C-D) is estimated from a sector-specific model based on "
+          f"regional economic activity indicators, but individual enterprise loads are assumption-"
+          f"based and require anchor customer verification. Anchor load demand (Grade D) is "
+          f"entirely assumption-based and requires take-or-pay contract confirmation. Public "
+          f"institution demand (Grade C) reflects confirmed facility presence with assumed "
+          f"consumption profiles. The load profile shape (Grade C) follows a generic Mozambique "
+          f"rural profile, and the demand growth rate (Grade D) applies a national average "
+          f"assumption of 3% per annum. Evidence grading follows the standard: "
+          f"A = Field verified; B = Survey-calibrated; C = Modelled from secondary data; "
+          f"D = Assumption; E = Unknown.",
+          italic=True, size=10, color=_GREY)
 
     doc.add_page_break()
 
     # ══════════════════════════════════════════════════════════════
-    # 5. PRODUCTIVE USE OF ENERGY AND LOCAL ECONOMIC DEVELOPMENT
+    # 4. PRODUCTIVE USE OF ENERGY AND LOCAL ECONOMIC DEVELOPMENT
     # ══════════════════════════════════════════════════════════════
-    _h1(doc, "5. Productive Use of Energy and Local Economic Development")
+    _h1(doc, "4. Productive Use of Energy and Local Economic Development")
 
     _para(doc,
           f"This is the anchor chapter of the PFS. Productive use of energy (PUE) is the primary "
@@ -795,8 +1017,8 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
           f"demand rather than treating it as an optimistic upside scenario.",
           bold=False)
 
-    # 5.1 Baseline Economic Mapping
-    _h2(doc, "5.1 Baseline Economic Mapping")
+    # 4.1 Baseline Economic Mapping
+    _h2(doc, "4.1 Baseline Economic Mapping")
     crop_types = _g(cluster, "crop_types") or "subsistence agriculture"
     _para(doc,
           f"The baseline economic profile of {site_name} is characterised by {crop_types}. "
@@ -806,9 +1028,8 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
     _placeholder(doc, "[Detailed baseline economic survey to be conducted during field validation, "
                       "including seasonality mapping and market access assessment]")
 
-    # 5.2 Sector Relevance Assessment
-    _h2(doc, "5.2 Sector Relevance Assessment")
-    sectors = _g(productive_use, "sectors") or []
+    # 4.2 Sector Relevance Assessment
+    _h2(doc, "4.2 Sector Relevance Assessment")
     all_sector_names = [
         "Cereals & Tubers", "Cashew & Oilseeds", "Horticulture",
         "Fisheries", "Livestock & Dairy", "Cold Chain",
@@ -826,15 +1047,29 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
                 f"{sec.get('estimated_demand_kwh_day', 0) if isinstance(sec, dict) else getattr(sec, 'estimated_demand_kwh_day', 0):.1f}",
             ])
     else:
-        # Default sectors with placeholder assessments
         for sname in all_sector_names:
             sector_table.append([sname, "[To be assessed]", "[Field assessment required]", "--"])
 
-    _table_caption(doc, "Table 5-1: Sector relevance assessment")
+    _table_caption(doc, "Table 4-1: Sector relevance assessment")
     _add_table(doc, sector_table)
 
-    # 5.3 Anchor Load Pipeline
-    _h2(doc, "5.3 Anchor Load Pipeline")
+    # Explanatory paragraph after sector assessment
+    high_rel_sectors = [s for s in sectors if (s.get("relevance", "") if isinstance(s, dict) else getattr(s, "relevance", "")).lower() in ("high", "very high")] if sectors else []
+    med_rel_sectors = [s for s in sectors if (s.get("relevance", "") if isinstance(s, dict) else getattr(s, "relevance", "")).lower() in ("medium", "medium-high")] if sectors else []
+
+    _para(doc,
+          f"The sector relevance assessment identifies {len(high_rel_sectors)} sector(s) with "
+          f"high relevance and {len(med_rel_sectors)} with medium relevance for {site_name}. "
+          f"High-relevance sectors represent the strongest candidates for productive demand "
+          f"activation, where existing economic activity can be directly enhanced through "
+          f"electrification. Medium-relevance sectors present viable but less certain opportunities "
+          f"that may require demand stimulation support. Low-relevance sectors are unlikely to "
+          f"generate material demand in the near term but may become relevant as the local economy "
+          f"develops. The relevance ratings drive the anchor customer pipeline and equipment "
+          f"financing priorities described in the following sections.")
+
+    # 4.3 Anchor Load Pipeline
+    _h2(doc, "4.3 Anchor Load Pipeline")
     anchors = _g(productive_use, "anchors") or []
     anchor_table = [["Anchor Type", "Name", "Est. Demand (kWh/day)", "Peak (kW)",
                      "Confidence Grade", "Contract Status"]]
@@ -859,11 +1094,27 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
     else:
         anchor_table.append(["[No anchors identified]", "--", "--", "--", "E", "None"])
 
-    _table_caption(doc, "Table 5-2: Anchor load pipeline")
+    _table_caption(doc, "Table 4-2: Anchor load pipeline")
     _add_table(doc, anchor_table)
 
-    # 5.4 Productive-Use Business Cases
-    _h2(doc, "5.4 Productive-Use Business Cases")
+    # Explanatory paragraph for anchor pipeline
+    grade_a_b = sum(1 for ac in anchors if (ac.get("confidence", "") if isinstance(ac, dict) else getattr(ac, "confidence", "")).upper() in ("A", "B")) if anchors else 0
+    grade_c = sum(1 for ac in anchors if (ac.get("confidence", "") if isinstance(ac, dict) else getattr(ac, "confidence", "")).upper() in ("C",)) if anchors else 0
+    grade_d_e = sum(1 for ac in anchors if (ac.get("confidence", "") if isinstance(ac, dict) else getattr(ac, "confidence", "")).upper() in ("D", "E")) if anchors else 0
+
+    _para(doc,
+          f"The anchor pipeline comprises {len(anchors)} identified prospective anchor "
+          f"customer(s), of which {grade_a_b} are at confidence Grade A-B (field verified or "
+          f"survey calibrated), {grade_c} at Grade C (modelled), and {grade_d_e} at Grade D-E "
+          f"(assumption-based). Anchors at Grade A-B represent bankable demand that can underpin "
+          f"financing commitments, while Grade C anchors require direct engagement to confirm "
+          f"willingness to contract. Grade D-E anchors are speculative and should not be relied "
+          f"upon for base-case financial modelling. Advancing anchors to Grade A-B through "
+          f"letters of intent or take-or-pay contracts is a critical path activity for the full "
+          f"feasibility phase.")
+
+    # 4.4 Productive-Use Business Cases
+    _h2(doc, "4.4 Productive-Use Business Cases")
     equip = _g(productive_use, "equipment_recommendations") or []
     if equip:
         for i, eq in enumerate(equip[:5], 1):
@@ -894,18 +1145,29 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
                 ["Bankability Rating", "[Requires anchor contract verification]"],
             ]
             _add_table(doc, bc_data)
+
+            _para(doc,
+                  f"The {eq_equipment} business case targets the {eq_sector} sector with an "
+                  f"estimated power requirement of {eq_power:.1f} kW and equipment CAPEX of "
+                  f"USD {eq_capex_low:,.0f} to {eq_capex_high:,.0f}. Under the proposed "
+                  f"{eq_ownership or 'ownership'} model, the equipment operator would pay for "
+                  f"electricity consumption at the productive use tariff, generating incremental "
+                  f"revenue for the mini-grid while enabling value addition in the local economy. "
+                  f"The revenue impact and payback period for the equipment investment should be "
+                  f"quantified during the field assessment through direct engagement with "
+                  f"prospective operators and analysis of local market prices for processed outputs.")
     else:
         _placeholder(doc, "[Productive use business cases to be developed during field assessment. "
                           "Minimum 3-5 business cases per site are required for full feasibility.]")
 
-    # 5.5 Demand Stimulation Programme
-    _h2(doc, "5.5 Demand Stimulation Programme")
+    # 4.5 Demand Stimulation Programme
+    _h2(doc, "4.5 Demand Stimulation Programme")
     stim = _g(productive_use, "demand_stimulation") or {}
     if stim:
         stim_table = [["Programme Element", "Description", "Target Users", "Timeline"]]
         for k, v in stim.items():
             stim_table.append([k.replace("_", " ").title(), str(v), "[TBD]", "[TBD]"])
-        _table_caption(doc, "Table 5-3: Demand stimulation programme")
+        _table_caption(doc, "Table 4-3: Demand stimulation programme")
         _add_table(doc, stim_table)
     else:
         _para(doc,
@@ -918,8 +1180,8 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
         _bullet(doc, "Business development services for micro-enterprises")
         _placeholder(doc, "[Detailed demand stimulation plan to be developed during full feasibility]")
 
-    # 5.6 Equipment Finance and Appliance Plan
-    _h2(doc, "5.6 Equipment Finance and Appliance Plan")
+    # 4.6 Equipment Finance and Appliance Plan
+    _h2(doc, "4.6 Equipment Finance and Appliance Plan")
     _para(doc,
           "Equipment access is the critical enabler for productive use uptake. The appliance "
           "plan identifies priority equipment, financing mechanisms, and delivery partners.")
@@ -940,13 +1202,26 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
                     f"{getattr(eq, 'capex_usd_low', 0):,.0f} -- {getattr(eq, 'capex_usd_high', 0):,.0f}",
                     getattr(eq, "ownership_model", ""),
                 ])
-        _table_caption(doc, "Table 5-4: Equipment and appliance plan")
+        _table_caption(doc, "Table 4-4: Equipment and appliance plan")
         _add_table(doc, equip_table)
+
+        total_equip_capex = sum(
+            (eq.get("capex_usd_high", 0) if isinstance(eq, dict) else getattr(eq, "capex_usd_high", 0))
+            for eq in equip
+        )
+        _para(doc,
+              f"The total equipment CAPEX across all identified productive use items is estimated "
+              f"at up to USD {total_equip_capex:,.0f}. Financing these appliances is critical for "
+              f"PUE activation and requires coordination with equipment suppliers, microfinance "
+              f"institutions, and development finance partners. Lease-to-own and pay-as-you-go "
+              f"models are preferred where feasible, as they lower the upfront barrier to adoption "
+              f"while maintaining equipment quality standards. The appliance plan should be refined "
+              f"during full feasibility based on direct market assessment and operator engagement.")
     else:
         _placeholder(doc, "[Equipment finance plan to be developed with partner financing institutions]")
 
-    # 5.7 Complementary Investment Requirements
-    _h2(doc, "5.7 Complementary Investment Requirements")
+    # 4.7 Complementary Investment Requirements
+    _h2(doc, "4.7 Complementary Investment Requirements")
     comp_inv = _g(productive_use, "complementary_investment_usd") or {}
     if comp_inv:
         comp_table = [["Investment Category", "Estimated Cost (USD)"]]
@@ -955,7 +1230,7 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
             comp_table.append([cat.replace("_", " ").title(), f"{val:,.0f}"])
             total_comp += val
         comp_table.append(["TOTAL", f"{total_comp:,.0f}"])
-        _table_caption(doc, "Table 5-5: Complementary investment requirements")
+        _table_caption(doc, "Table 4-5: Complementary investment requirements")
         _add_table(doc, comp_table)
         _para(doc,
               f"Total complementary investment required is estimated at USD {total_comp:,.0f}. "
@@ -964,7 +1239,7 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
               f"activating productive demand and should be coordinated with the mini-grid "
               f"concession timeline.")
     else:
-        _table_caption(doc, "Table 5-5: Complementary investment categories")
+        _table_caption(doc, "Table 4-5: Complementary investment categories")
         _add_table(doc, [
             ["Investment Category", "Estimated Cost (USD)"],
             ["Productive Equipment CAPEX", "[To be estimated]"],
@@ -974,12 +1249,12 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
             ["TOTAL", "[To be estimated]"],
         ])
 
-    # 5.8 Jobs, Income, and Inclusion
-    _h2(doc, "5.8 Jobs, Income, and Inclusion")
+    # 4.8 Jobs, Income, and Inclusion
+    _h2(doc, "4.8 Jobs, Income, and Inclusion")
     jobs = _g(productive_use, "jobs") or {}
     income = _g(productive_use, "incremental_income_usd_year") or 0
     if jobs or income > 0:
-        _table_caption(doc, "Table 5-6: Employment and income impact")
+        _table_caption(doc, "Table 4-6: Employment and income impact")
         jobs_table = [["Impact Metric", "Estimate"]]
         if jobs.get("direct"):
             jobs_table.append(["Direct Jobs Created", str(jobs["direct"])])
@@ -999,22 +1274,32 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
         if pub_beneficiaries > 0:
             jobs_table.append(["Public Service Beneficiaries", f"{pub_beneficiaries:,}"])
         _add_table(doc, jobs_table)
+
+        total_jobs = jobs.get("total", 0) or (jobs.get("direct", 0) or 0) + (jobs.get("indirect", 0) or 0)
+        _para(doc,
+              f"The productive use programme is expected to generate approximately {total_jobs} "
+              f"direct and indirect jobs, with incremental annual income of USD {income:,.0f} "
+              f"flowing into the local economy. "
+              f"{'Public service beneficiaries include approximately ' + f'{pub_beneficiaries:,}' + ' people served by electrified health and education facilities. ' if pub_beneficiaries > 0 else ''}"
+              f"These development impact projections are central to the project's eligibility "
+              f"for results-based finance and climate finance instruments, and should be validated "
+              f"through field assessment to establish credible baselines for impact measurement.")
     else:
         _placeholder(doc, "[Employment and income projections to be developed from PUE business cases]")
 
-    # 5.9 PUE Impact on System Economics
-    _h2(doc, "5.9 PUE Impact on System Economics")
+    # 4.9 PUE Impact on System Economics
+    _h2(doc, "4.9 PUE Impact on System Economics")
     _para(doc,
           "The following table illustrates how productive use demand fundamentally changes "
           "system economics. The PUE-led approach reduces the per-unit cost of energy by "
           "improving load factor, reducing the required subsidy, and accelerating payback.")
 
     # Compute illustrative scenarios
-    res_only_lcoe = (lcoe or 0) * 1.4 if lcoe else 0  # Residential only would be ~40% higher
+    res_only_lcoe = (lcoe or 0) * 1.4 if lcoe else 0
     base_lcoe = lcoe or 0
-    activated_lcoe = base_lcoe * 0.85 if base_lcoe else 0  # Full PUE activation reduces ~15%
+    activated_lcoe = base_lcoe * 0.85 if base_lcoe else 0
 
-    _table_caption(doc, "Table 5-7: PUE impact on system economics")
+    _table_caption(doc, "Table 4-7: PUE impact on system economics")
     pue_econ_data = [
         ["Metric", "Residential Only", "Base PUE", "Activated PUE"],
         ["LCOE (USD/kWh)", _usd_kwh(res_only_lcoe) if res_only_lcoe else "--",
@@ -1030,15 +1315,26 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
     ]
     _add_table(doc, pue_econ_data)
 
+    _para(doc,
+          f"The comparison demonstrates that a residential-only mini-grid at this site would "
+          f"require an LCOE of {_usd_kwh(res_only_lcoe) if res_only_lcoe else '--'}, which is "
+          f"likely unaffordable and would require subsidy of up to "
+          f"{min(subsidy_gap_pct * 1.3, 95):.0f}% of CAPEX. The base PUE scenario reduces the "
+          f"LCOE by approximately 30% by improving the daytime load factor from 15-20% to 30-40%. "
+          f"Full PUE activation -- achievable through successful demand stimulation and anchor "
+          f"contracting -- further reduces the subsidy requirement and brings the project closer "
+          f"to commercial viability. This underscores the critical importance of the PUE programme "
+          f"to the project's financial sustainability.")
+
     doc.add_page_break()
 
     # ══════════════════════════════════════════════════════════════
-    # 6. RESOURCE ASSESSMENT AND TECHNICAL DESIGN
+    # 5. RESOURCE ASSESSMENT AND TECHNICAL DESIGN (was Section 6)
     # ══════════════════════════════════════════════════════════════
-    _h1(doc, "6. Resource Assessment and Technical Design")
+    _h1(doc, "5. Resource Assessment and Technical Design")
 
-    # 6.1 Solar Resource
-    _h2(doc, "6.1 Solar Resource")
+    # 5.1 Solar Resource
+    _h2(doc, "5.1 Solar Resource")
     spec_yield = _g(solar_resource, "specific_yield_kwh_per_kwp") or 0
     pr = _g(solar_resource, "performance_ratio") or 0.77
     data_source = _g(solar_resource, "data_source") or "DRE Atlas / PVGIS"
@@ -1047,7 +1343,7 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
           f"{data_source}. Annual Global Horizontal Irradiance (GHI) is {ghi:,.0f} kWh/m2/year, "
           f"indicating a strong solar resource suitable for fixed-tilt PV mini-grid development.")
 
-    _table_caption(doc, "Table 6-1: Solar resource summary")
+    _table_caption(doc, "Table 5-1: Solar resource summary")
     solar_table = [
         ["Parameter", "Value", "Source / Confidence"],
         ["Annual GHI", f"{ghi:,.0f} kWh/m2/year", data_source],
@@ -1059,12 +1355,24 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
     ]
     _add_table(doc, solar_table)
 
+    _para(doc,
+          f"The annual GHI of {ghi:,.0f} kWh/m2/year places {site_name} in the upper range for "
+          f"Mozambique and is well above the minimum threshold of 1,400 kWh/m2/year typically "
+          f"required for viable solar mini-grid development in Sub-Saharan Africa. The specific "
+          f"yield of {spec_yield:,.0f} kWh/kWp/year (if calculated) or estimated equivalent "
+          f"indicates that each kilowatt-peak of installed PV capacity will produce sufficient "
+          f"energy to service the projected demand. Seasonal variation between wet and dry "
+          f"seasons is expected to range between 15-25%, with peak solar production during the "
+          f"dry season (May-October) aligning favourably with peak agricultural processing demand. "
+          f"The performance ratio of {pr:.2f} accounts for module temperature derating, soiling, "
+          f"inverter losses, and wiring losses under local conditions.")
+
     # Monthly GHI table
     monthly_ghi = _g(solar_resource, "monthly_ghi_kwh_m2") or []
     if monthly_ghi and len(monthly_ghi) == 12:
         months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
                   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-        _table_caption(doc, "Table 6-2: Monthly GHI profile")
+        _table_caption(doc, "Table 5-2: Monthly GHI profile")
         ghi_table = [["Month", "GHI (kWh/m2)", "Seasonal Note"]]
         for i, m in enumerate(months):
             note = ""
@@ -1076,16 +1384,16 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
         ghi_table.append(["Annual", f"{ghi:,.0f}", ""])
         _add_table(doc, ghi_table, small=True)
 
-    # 6.2 Technology Selection
-    _h2(doc, "6.2 Technology Selection")
+    # 5.2 Technology Selection
+    _h2(doc, "5.2 Technology Selection")
     _para(doc,
           f"The preferred technology is a fixed-tilt ground-mounted solar PV plant with "
           f"LFP (Lithium Iron Phosphate) battery storage and hybrid inverters. Module technology "
           f"is monocrystalline mono-PERC or TOPCon. Battery chemistry is LFP, selected for "
           f"cycle life, thermal stability in tropical climates, and declining cost trajectory.")
 
-    # 6.3 System Configuration
-    _h2(doc, "6.3 System Configuration")
+    # 5.3 System Configuration
+    _h2(doc, "5.3 System Configuration")
     inv_kva = _g(sizing, "inverter_kva") or 0
     batt_nominal = _g(sizing, "battery_kwh_nominal") or 0
     batt_usable = _g(sizing, "battery_kwh_usable") or 0
@@ -1093,14 +1401,14 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
     meters = _g(sizing, "meters") or households
     rf = 100 - (_g(sizing, "unmet_energy_pct") or 0)
 
-    _table_caption(doc, "Table 6-3: System configuration")
+    _table_caption(doc, "Table 5-3: System configuration")
     config_data = [
         ["Parameter", "Value", "Note"],
         ["PV Installed Capacity", f"{pv_kwp:.1f} kWp", "DC nameplate"],
         ["Battery Storage (nominal)", f"{batt_nominal:.0f} kWh", "LFP"],
         ["Battery Storage (usable)", f"{batt_usable:.0f} kWh", "80% DoD"],
         ["Inverter Capacity", f"{inv_kva:.1f} kVA", "Hybrid inverter"],
-        ["Backup Generator", "[Optional diesel standby — to be confirmed]", ""],
+        ["Backup Generator", "[Optional diesel standby -- to be confirmed]", ""],
         ["Distribution Network", f"{lv_km:.1f} km total", "LV single-phase"],
         ["Meters", f"{meters}", "Prepaid smart meters"],
         ["Service Level", f"Tier {_g(demand, 'demand_tier') or 3}", "MTF classification"],
@@ -1109,8 +1417,25 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
     ]
     _add_table(doc, config_data)
 
-    # 6.4 Dispatch Simulation
-    _h2(doc, "6.4 Dispatch Simulation")
+    # Battery hours of storage
+    batt_hours = batt_usable / max(peak_kw, 0.1) if peak_kw > 0 else 0
+    pv_to_load_ratio = pv_kwp / max(peak_kw, 0.1) if peak_kw > 0 else 0
+
+    _para(doc,
+          f"The system configuration is designed to serve {households:,} connections with a PV "
+          f"array of {pv_kwp:.1f} kWp and {batt_usable:.0f} kWh of usable battery storage, "
+          f"providing approximately {batt_hours:.1f} hours of autonomy at peak demand. The "
+          f"PV-to-peak-load ratio of {pv_to_load_ratio:.1f}:1 ensures adequate daytime generation "
+          f"capacity to serve loads directly while charging the battery for evening consumption. "
+          f"The battery sizing targets 80% depth of discharge (DoD) from the nominal capacity of "
+          f"{batt_nominal:.0f} kWh, balancing cycle life against capital cost. LFP chemistry is "
+          f"specified for its superior cycle life (3,000-5,000 cycles at 80% DoD), thermal "
+          f"stability in the tropical climate zone, and absence of cobalt supply chain concerns. "
+          f"The hybrid inverter configuration allows seamless integration of an optional diesel "
+          f"backup generator if required for reliability during extended cloudy periods.")
+
+    # 5.4 Dispatch Simulation
+    _h2(doc, "5.4 Dispatch Simulation")
     ann_gen = _g(sizing, "annual_generation_kwh") or 0
     ann_served = _g(sizing, "annual_energy_served_kwh") or 0
     unmet = _g(sizing, "unmet_energy_pct") or 0
@@ -1123,7 +1448,7 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
               f"An 8,760-hour dispatch simulation was performed using hourly solar irradiance "
               f"data and the estimated load profile. The system generates {ann_gen / 1000:.1f} MWh/year "
               f"gross, serving {ann_served / 1000:.1f} MWh/year of demand.")
-        _table_caption(doc, "Table 6-4: Dispatch simulation results")
+        _table_caption(doc, "Table 5-4: Dispatch simulation results")
         dispatch_data = [
             ["Parameter", "Value"],
             ["Annual Gross Generation", f"{ann_gen / 1000:.1f} MWh/year"],
@@ -1134,11 +1459,23 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
             ["Battery Cycles / Year", f"{batt_cycles:.0f}"],
         ]
         _add_table(doc, dispatch_data)
+
+        _para(doc,
+              f"The dispatch simulation results indicate a system capacity factor of "
+              f"{cap_factor:.1f}%, with {unmet:.1f}% of annual demand remaining unmet and "
+              f"{curtailment:.1f}% of generated energy curtailed. "
+              f"{'The unmet energy percentage is within the acceptable range for a Tier ' + str(_g(demand, 'demand_tier') or 3) + ' service level.' if unmet < 5 else 'The unmet energy percentage is above the ideal threshold and may require additional generation capacity or demand-side management.'} "
+              f"Curtailment of {curtailment:.1f}% represents energy that cannot be stored or "
+              f"consumed during peak solar hours; this excess capacity provides headroom for demand "
+              f"growth and PUE activation. The battery is projected to cycle approximately "
+              f"{batt_cycles:.0f} times per year, which is well within the rated cycle life of "
+              f"LFP chemistry and indicates the battery replacement will not be required before "
+              f"Year 10-12 of operation.")
     else:
         _placeholder(doc, "[Dispatch simulation results to be generated]")
 
-    # 6.5 Distribution Network
-    _h2(doc, "6.5 Distribution Network")
+    # 5.5 Distribution Network
+    _h2(doc, "5.5 Distribution Network")
     if distribution:
         line_length = _g(distribution, "total_line_length_m") or 0
         pole_count = _g(distribution, "pole_count") or 0
@@ -1152,7 +1489,7 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
               f"(AAC 50mm2 aluminium), feeder branches (AAC 35mm2 aluminium), and insulated "
               f"ABC service drops to customer premises.")
 
-        _table_caption(doc, "Table 6-5: Distribution network summary")
+        _table_caption(doc, "Table 5-5: Distribution network summary")
         dist_data = [
             ["Parameter", "Value"],
             ["Total Line Length", f"{line_length:,.0f} m"],
@@ -1165,10 +1502,23 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
         ]
         _add_table(doc, dist_data)
 
+        _para(doc,
+              f"The radial topology is the standard configuration for isolated mini-grids of this "
+              f"scale, providing a balance between construction cost and reliability. The trunk "
+              f"line conductor (AAC 50mm2) is selected to carry the full system load with "
+              f"acceptable voltage regulation over the {line_length:,.0f} m network length. "
+              f"Feeder branches (AAC 35mm2) serve clusters of customers within the settlement. "
+              f"The maximum voltage drop of {vdrop:.1f}% is "
+              f"{'within' if vdrop <= 5 else 'above'} the IEC recommended limit of 5% for "
+              f"low-voltage networks"
+              f"{', indicating satisfactory network design' if vdrop <= 5 else ', which may require conductor upsizing or additional distribution transformers during detailed design'}. "
+              f"Technical losses of {tech_losses:.1f}% are "
+              f"{'within acceptable range for a rural LV network' if tech_losses < 8 else 'somewhat elevated and should be addressed in detailed design'}.")
+
         # BoQ summary
         boq = _g(distribution, "bill_of_quantities") or []
         if boq:
-            _table_caption(doc, "Table 6-6: Distribution BoQ summary")
+            _table_caption(doc, "Table 5-6: Distribution BoQ summary")
             boq_table = [["Category", "Description", "Qty", "Unit", "Unit Cost (USD)", "Total (USD)"]]
             for item in boq:
                 if isinstance(item, dict):
@@ -1192,12 +1542,12 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
     doc.add_page_break()
 
     # ══════════════════════════════════════════════════════════════
-    # 7. CAPEX AND OPEX
+    # 6. CAPEX AND OPEX (was Section 7)
     # ══════════════════════════════════════════════════════════════
-    _h1(doc, "7. CAPEX and OPEX")
+    _h1(doc, "6. CAPEX and OPEX")
 
-    # 7.1 CAPEX Estimate
-    _h2(doc, "7.1 CAPEX Estimate")
+    # 6.1 CAPEX Estimate
+    _h2(doc, "6.1 CAPEX Estimate")
     capex_bk = _g(financial, "capex_breakdown") or {}
 
     def _bk(key):
@@ -1216,7 +1566,7 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
     owners_cost = _bk("owners_cost") or int(total_capex * 0.05)
     epc_margin = _bk("epc_margin") or int(total_capex * 0.08)
 
-    _table_caption(doc, "Table 7-1: CAPEX estimate")
+    _table_caption(doc, "Table 6-1: CAPEX estimate")
     capex_data = [
         ["Component", "Cost (USD)", "% of Total"],
         ["PV Modules", f"{pv_cost:,.0f}", f"{pv_cost / max(total_capex, 1) * 100:.1f}%"],
@@ -1233,15 +1583,39 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
     ]
     _add_table(doc, capex_data)
 
-    # 7.2 OPEX Estimate
-    _h2(doc, "7.2 OPEX Estimate")
+    # CAPEX pie chart
+    pie_labels = ["PV Modules", "Battery & EMS", "Inverters", "Mounting",
+                  "BoS", "Civil Works", "Distribution", "Contingency", "Other"]
+    pie_values = [pv_cost, batt_cost, inv_cost, mounting_cost, bos_cost,
+                  civil_cost, conn_cost, contingency_cost, owners_cost + epc_margin]
+    _add_pie_chart(doc, pie_labels, pie_values, "CAPEX Composition")
+
+    gen_equipment_pct = (pv_cost + batt_cost + inv_cost) / max(total_capex, 1) * 100
+    dist_pct = conn_cost / max(total_capex, 1) * 100
+    capex_per_wp = _g(financial, "capex_per_wp") or 0
+
+    _para(doc,
+          f"Generation equipment (PV modules, battery storage, and inverters) represents "
+          f"{gen_equipment_pct:.0f}% of total CAPEX, which is the single largest cost driver. "
+          f"Battery storage alone accounts for {batt_cost / max(total_capex, 1) * 100:.0f}% of "
+          f"total CAPEX, reflecting the high energy storage requirements for evening and nighttime "
+          f"loads in an isolated system. Distribution and connections represent {dist_pct:.0f}% of "
+          f"CAPEX. The total CAPEX of {_usd(total_capex)} translates to "
+          f"{_fmt(capex_per_wp, 'USD {:.2f}/Wp') if capex_per_wp else '--'}, which is "
+          f"{'within' if capex_per_wp and 3 <= capex_per_wp <= 8 else 'outside'} the typical "
+          f"range for Sub-Saharan African mini-grids (USD 3-8/Wp). Cost reduction opportunities "
+          f"include procurement consolidation across clustered sites, competitive EPC tendering, "
+          f"and leveraging declining global battery prices.")
+
+    # 6.2 OPEX Estimate
+    _h2(doc, "6.2 OPEX Estimate")
     opex_bk = _g(financial, "opex_breakdown") or {}
     annual_opex = _g(financial, "annual_opex_usd") or 0
 
     def _ox(key):
         return _g(opex_bk, key) or 0
 
-    _table_caption(doc, "Table 7-2: Annual OPEX estimate")
+    _table_caption(doc, "Table 6-2: Annual OPEX estimate")
     opex_data = [
         ["Category", "Annual Cost (USD)", "Note"],
         ["Generation O&M", f"{_ox('generation_om'):,.0f}", "Cleaning, monitoring, minor repairs"],
@@ -1253,13 +1627,22 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
     ]
     _add_table(doc, opex_data)
 
-    # 7.3 Benchmarks
-    _h2(doc, "7.3 Benchmarks")
-    capex_per_wp = _g(financial, "capex_per_wp") or 0
+    opex_pct_capex = annual_opex / max(total_capex, 1) * 100
+    _para(doc,
+          f"Annual OPEX of {_usd(annual_opex)} represents {opex_pct_capex:.1f}% of total CAPEX, "
+          f"which is {'within' if 2 <= opex_pct_capex <= 5 else 'outside'} the typical range of "
+          f"2-5% for solar mini-grids. The O&M strategy assumes a combination of local staff for "
+          f"routine maintenance (panel cleaning, vegetation management, meter servicing) and "
+          f"remote monitoring via SCADA for performance tracking and fault diagnosis. Major "
+          f"maintenance events (inverter replacement, battery cell balancing) are budgeted "
+          f"separately under the replacement reserve.")
+
+    # 6.3 Benchmarks
+    _h2(doc, "6.3 Benchmarks")
     capex_per_conn = total_capex / max(households, 1)
     opex_per_conn = annual_opex / max(households, 1)
     opex_per_kwh = annual_opex / max(annual_energy, 1)
-    _table_caption(doc, "Table 7-3: Cost benchmarks")
+    _table_caption(doc, "Table 6-3: Cost benchmarks")
     bench_data = [
         ["Benchmark", "Value", "SSA Mini-Grid Range"],
         ["CAPEX / Connection", f"USD {capex_per_conn:,.0f}", "USD 800 - 3,500"],
@@ -1269,15 +1652,24 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
     ]
     _add_table(doc, bench_data)
 
+    _para(doc,
+          f"The CAPEX per connection of USD {capex_per_conn:,.0f} and CAPEX per kWp of "
+          f"USD {total_capex / max(pv_kwp, 0.1):,.0f} are compared against ESMAP and AMDA "
+          f"benchmarks for Sub-Saharan African mini-grids. "
+          f"{'These figures are within the expected range, suggesting the cost estimates are reasonable.' if 800 <= capex_per_conn <= 3500 else 'These figures fall outside the typical range, which may reflect site-specific factors such as distribution network length, remoteness, or the productive use equipment requirements.'} "
+          f"OPEX per connection of USD {opex_per_conn:,.0f}/year and OPEX per kWh of "
+          f"USD {opex_per_kwh:.4f} are key metrics for tariff setting and should be validated "
+          f"against comparable operational mini-grids in Mozambique and the region.")
+
     doc.add_page_break()
 
     # ══════════════════════════════════════════════════════════════
-    # 8. TARIFF, SUBSIDY, AND FINANCIAL MODEL
+    # 7. TARIFF, SUBSIDY, AND FINANCIAL MODEL (was Section 8)
     # ══════════════════════════════════════════════════════════════
-    _h1(doc, "8. Tariff, Subsidy, and Financial Model")
+    _h1(doc, "7. Tariff, Subsidy, and Financial Model")
 
-    # 8.1 Tariff Structure
-    _h2(doc, "8.1 Tariff Structure")
+    # 7.1 Tariff Structure
+    _h2(doc, "7.1 Tariff Structure")
     _para(doc,
           "The tariff structure follows ARENE's cost-reflective tariff methodology under "
           "Decree 93/2021, with cross-subsidisation between customer classes.")
@@ -1286,7 +1678,7 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
     productive_tariff = (cost_reflective or 0) * 0.95
     anchor_tariff = (cost_reflective or 0) * 0.80
 
-    _table_caption(doc, "Table 8-1: Tariff structure by customer class")
+    _table_caption(doc, "Table 7-1: Tariff structure by customer class")
     tariff_data = [
         ["Customer Class", "Tariff (USD/kWh)", "Tariff (MZN/kWh)", "Basis"],
         ["Residential", f"{residential_tariff:.4f}", f"{residential_tariff * 63.5:.1f}", "85% of CRT"],
@@ -1297,13 +1689,22 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
     ]
     _add_table(doc, tariff_data)
 
-    # 8.2 Subsidy Requirement
-    _h2(doc, "8.2 Subsidy Requirement")
+    _para(doc,
+          f"The tariff structure applies cross-subsidisation where commercial customers pay a "
+          f"premium (110% of cost-reflective tariff) that partially subsidises residential tariffs "
+          f"(85% of CRT). Productive use customers receive a slight discount (95% of CRT) to "
+          f"incentivise PUE uptake, while anchor customers on take-or-pay contracts receive the "
+          f"deepest discount (80% of CRT) in exchange for demand certainty. All tariffs are "
+          f"subject to ARENE approval and periodic review (every 3 years or triggered by CPI > 15% "
+          f"or FX depreciation > 20%).")
+
+    # 7.2 Subsidy Requirement
+    _h2(doc, "7.2 Subsidy Requirement")
     grant = _g(financial, "grant_amount_usd") or 0
     subsidy_gap_total = _g(financial, "subsidy_gap_total_usd") or 0
     subsidy_per_conn = _g(financial, "subsidy_gap_per_connection_usd") or 0
 
-    _table_caption(doc, "Table 8-2: Subsidy requirement summary")
+    _table_caption(doc, "Table 7-2: Subsidy requirement summary")
     subsidy_data = [
         ["Subsidy Component", "Amount (USD)", "% of CAPEX", "Source"],
         ["CAPEX Grant", f"{grant:,.0f}", f"{grant / max(total_capex, 1) * 100:.0f}%",
@@ -1316,13 +1717,20 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
     ]
     _add_table(doc, subsidy_data)
 
-    # 8.3 Financial Outputs
-    _h2(doc, "8.3 Financial Outputs")
+    _para(doc,
+          f"The total subsidy gap is estimated at {_usd(subsidy_gap_total)}, representing "
+          f"{subsidy_gap_pct:.0f}% of total CAPEX. This subsidy requirement is "
+          f"{'within the range typically covered by existing instruments (BRILHO, FUNAE, bilateral donors)' if subsidy_gap_pct < 50 else 'significant and will require a blended finance approach combining multiple subsidy instruments'}. "
+          f"The subsidy per connection of USD {subsidy_per_conn:,.0f} is a key metric for "
+          f"results-based finance eligibility.")
+
+    # 7.3 Financial Outputs
+    _h2(doc, "7.3 Financial Outputs")
     equity_irr = _g(financial, "equity_irr_pct") or 0
     dscr = _g(financial, "dscr") or 0
     npv = _g(financial, "npv_usd") or 0
 
-    _table_caption(doc, "Table 8-3: Financial outputs -- with and without subsidy")
+    _table_caption(doc, "Table 7-3: Financial outputs -- with and without subsidy")
     fin_data = [
         ["Metric", "Without Subsidy", "With Subsidy"],
         ["Project IRR", f"{irr:.1f}%", f"{max(irr + 5, irr * 1.5):.1f}%"],
@@ -1337,20 +1745,21 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
     ]
     _add_table(doc, fin_data)
 
-    # 8.4 CAPEX Breakdown description
-    _h2(doc, "8.4 CAPEX Breakdown")
     _para(doc,
-          "The CAPEX breakdown shows generation equipment (PV + battery + inverter) representing "
-          f"approximately {(pv_cost + batt_cost + inv_cost) / max(total_capex, 1) * 100:.0f}% of "
-          f"total CAPEX, with distribution and connections at "
-          f"{conn_cost / max(total_capex, 1) * 100:.0f}%. "
-          f"A CAPEX composition chart should be included in the full feasibility report.")
+          f"Without subsidy, the project achieves a project IRR of {irr:.1f}% with a simple "
+          f"payback of {payback:.1f} years. With the proposed subsidy structure, the project IRR "
+          f"improves to {max(irr + 5, irr * 1.5):.1f}% and payback reduces to "
+          f"{max(payback * 0.6, 5):.1f} years, bringing the project within the range typically "
+          f"required by commercial mini-grid developers (equity IRR > 12%, DSCR > 1.2x). The "
+          f"subsidy is essential to bridge the gap between the cost-reflective tariff and the "
+          f"affordable tariff, ensuring that electricity remains accessible to residential and "
+          f"productive use customers.")
 
-    # 8.5 Cash Flow Summary
-    _h2(doc, "8.5 Cash Flow Summary")
+    # 7.4 Cash Flow Summary
+    _h2(doc, "7.4 Cash Flow Summary")
     cash_flows = _g(financial, "cash_flow") or []
     if cash_flows:
-        _table_caption(doc, "Table 8-4: Cash flow summary (selected years)")
+        _table_caption(doc, "Table 7-4: Cash flow summary (selected years)")
         cf_table = [["Year", "Revenue (USD)", "OPEX (USD)", "Replacements (USD)",
                      "Net Cash Flow (USD)", "Cumulative (USD)"]]
         target_years = [1, 5, 10, 15, 20, 25]
@@ -1376,14 +1785,21 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
                         f"{getattr(cf, 'cumulative', 0):,.0f}",
                     ])
         _add_table(doc, cf_table, small=True)
+
+        _para(doc,
+              "The cash flow projection shows the trajectory of revenue, operating costs, and "
+              "replacement provisions over the concession period. Key inflection points include "
+              "battery replacement (typically Year 10-12) and the connection ramp-up period "
+              "(Years 1-5) during which revenue grows as new customers connect and productive "
+              "use demand matures.")
     else:
         _placeholder(doc, "[Cash flow projection to be generated from financial model]")
 
-    # 8.6 Sensitivity Analysis
-    _h2(doc, "8.6 Sensitivity Analysis")
+    # 7.5 Sensitivity Analysis
+    _h2(doc, "7.5 Sensitivity Analysis")
     sensitivity = _g(financial, "sensitivity") or []
     if sensitivity:
-        _table_caption(doc, "Table 8-5: Sensitivity analysis")
+        _table_caption(doc, "Table 7-5: Sensitivity analysis")
         sens_data = [["Variable", "IRR @ Low", "IRR @ Base", "IRR @ High"]]
         for sv in sensitivity:
             if isinstance(sv, dict):
@@ -1401,9 +1817,15 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
                     f"{getattr(sv, 'irr_at_high', 0):.1f}%",
                 ])
         _add_table(doc, sens_data)
+
+        _para(doc,
+              "The sensitivity analysis identifies the key variables that most affect project "
+              "returns. Demand shortfall and CAPEX overrun are typically the highest-impact "
+              "variables, underscoring the importance of accurate demand forecasting and "
+              "competitive procurement. FX risk and tariff approval delays represent regulatory "
+              "and macroeconomic risks that require contractual protection.")
     else:
-        # Default sensitivity scenarios
-        _table_caption(doc, "Table 8-5: Sensitivity analysis")
+        _table_caption(doc, "Table 7-5: Sensitivity analysis")
         default_sens = [
             ["Variable", "Change", "Impact on IRR", "Rating"],
             ["Demand -25%", "-25% energy sold", "[To be modelled]", "High impact"],
@@ -1416,33 +1838,41 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
         ]
         _add_table(doc, default_sens)
 
+        _para(doc,
+              "The sensitivity variables above represent the key risks to project financial "
+              "performance. Detailed sensitivity modelling should be completed during the full "
+              "feasibility phase using the calibrated financial model.")
+
     doc.add_page_break()
 
     # ══════════════════════════════════════════════════════════════
-    # 9. REGULATORY AND CONCESSION PATHWAY
+    # 8. REGULATORY AND CONCESSION PATHWAY (was Section 9)
     # ══════════════════════════════════════════════════════════════
-    _h1(doc, "9. Regulatory and Concession Pathway")
+    _h1(doc, "8. Regulatory and Concession Pathway")
 
-    # 9.1 Requirements Table
-    _h2(doc, "9.1 Regulatory Requirements")
-    _table_caption(doc, "Table 9-1: Regulatory requirements checklist")
-    reg_data = [
-        ["Requirement", "Authority", "Status", "Timeline"],
-        ["Concession Category", "MIREME", "Category to be confirmed (< 10 MW)", "Pre-application"],
-        ["Concession Boundary Definition", "MIREME / ARENE", "[To be defined]", "Month 1-2"],
-        ["Tariff Approval", "ARENE", "Cost-reflective methodology proposed", "Month 3-6"],
-        ["Land Rights (DUAT)", "District / Provincial Govt", "[To be initiated]", "Month 2-6"],
-        ["Technical Standards Compliance", "ARENE", "IEC 62124, IEC 61724 basis", "Design phase"],
-        ["ESIA / Environmental Licence", "MITADER (Decree 54/2015)", f"Category {'B' if _g(ess, 'esia_category') else '[TBD]'}", "Month 2-4"],
-        ["Community Consultation", "Local authorities", "[To be scheduled]", "Month 1-3"],
-        ["Tender Readiness", "MIREME / Developer", "[Post full feasibility]", "Month 6-12"],
+    # Process flow chart
+    reg_steps = [
+        "Concession\nCategory",
+        "Boundary\nDefinition",
+        "Tariff\nApproval",
+        "DUAT\n(Land Rights)",
+        "ESIA",
+        "Community\nConsultation",
+        "Tender"
     ]
-    _add_table(doc, reg_data)
+    _table_caption(doc, "Figure 8-1: Regulatory and concession process flow")
+    _add_process_flow(doc, reg_steps, "Concession Pathway -- Key Steps")
 
-    # 9.2 Recommended Concession Terms
-    _h2(doc, "9.2 Recommended Concession Terms")
+    _para(doc,
+          "The regulatory pathway follows the framework established by Decree 93/2021 for "
+          "isolated mini-grid concessions under MIREME/ARENE jurisdiction. The process involves "
+          "seven key stages from concession category determination through to tender readiness, "
+          "typically spanning 12-18 months.")
+
+    # 8.1 Recommended Concession Terms
+    _h2(doc, "8.1 Recommended Concession Terms")
     conc_term = 25 if dist_mv > 50 else 20 if dist_mv > 20 else 15
-    _table_caption(doc, "Table 9-2: Recommended concession terms")
+    _table_caption(doc, "Table 8-1: Recommended concession terms")
     conc_data = [
         ["Term", "Recommendation"],
         ["Duration", f"{conc_term} years"],
@@ -1457,19 +1887,28 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
     ]
     _add_table(doc, conc_data)
 
+    _para(doc,
+          f"The recommended concession duration of {conc_term} years reflects the distance to "
+          f"the MV grid ({dist_mv:.1f} km) and the associated grid-arrival risk. "
+          f"{'A 25-year term is appropriate given the remote location and low grid-arrival probability.' if conc_term == 25 else 'A shorter term is recommended given the proximity to the MV grid and associated grid-arrival risk.'} "
+          f"The subsidy disbursement schedule (70/30 split with RBF) aligns with standard DFI "
+          f"practice and provides performance incentives for the developer. Grid-arrival protection "
+          f"through interconnection rights and depreciated replacement cost compensation is "
+          f"essential to protect the investment against stranded asset risk.")
+
     doc.add_page_break()
 
     # ══════════════════════════════════════════════════════════════
-    # 10. GRID-ARRIVAL RISK
+    # 9. GRID-ARRIVAL RISK (was Section 10)
     # ══════════════════════════════════════════════════════════════
-    _h1(doc, "10. Grid-Arrival Risk")
+    _h1(doc, "9. Grid-Arrival Risk")
 
     risk_level = _g(grid_risk, "risk_level") or "unknown"
     dist_hv = _g(grid_risk, "dist_hv_km") or 0
     esmap_rec = _g(grid_risk, "esmap_recommended") or ""
     design_impl = _g(grid_risk, "design_implications") or ""
 
-    _table_caption(doc, "Table 10-1: Grid-arrival risk assessment")
+    _table_caption(doc, "Table 9-1: Grid-arrival risk assessment")
     grid_data = [
         ["Parameter", "Value"],
         ["Distance to Nearest MV Grid", f"{dist_mv:.1f} km"],
@@ -1485,13 +1924,19 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
     ]
     _add_table(doc, grid_data)
 
+    _para(doc,
+          f"The grid-arrival risk for {site_name} is classified as {risk_level.upper()}, based on "
+          f"a distance of {dist_mv:.1f} km to the nearest MV grid and {dist_hv:.1f} km to the "
+          f"nearest HV transmission line. "
+          f"{'At this distance, grid extension is unlikely within the concession period, providing a stable investment horizon.' if dist_mv > 50 else 'The proximity to the MV grid creates a material risk of grid arrival during the concession period, which must be addressed through contractual protections and grid-ready system design.'}")
+
     if esmap_rec:
         _para(doc, f"ESMAP recommended strategy: {esmap_rec}")
 
     # Grid arrival scenarios
     scenarios = _g(grid_risk, "scenarios") or []
     if scenarios:
-        _table_caption(doc, "Table 10-2: Grid arrival scenario analysis")
+        _table_caption(doc, "Table 9-2: Grid arrival scenario analysis")
         sc_data = [["Scenario", "Adjusted IRR", "Adjusted NPV (USD)", "Investment Recovered"]]
         for sc in scenarios:
             if isinstance(sc, dict):
@@ -1510,15 +1955,22 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
                 ])
         _add_table(doc, sc_data)
 
+        _para(doc,
+              "The grid arrival scenario analysis quantifies the financial impact of premature "
+              "grid connection at different points during the concession period. The results "
+              "demonstrate the importance of contractual grid-arrival protection and the value "
+              "of designing the system for potential grid interconnection rather than stranded "
+              "asset write-off.")
+
     doc.add_page_break()
 
     # ══════════════════════════════════════════════════════════════
-    # 11. ENVIRONMENTAL, SOCIAL, CLIMATE, AND GESI
+    # 10. ENVIRONMENTAL, SOCIAL, CLIMATE, AND GESI (was Section 11)
     # ══════════════════════════════════════════════════════════════
-    _h1(doc, "11. Environmental, Social, Climate, and GESI")
+    _h1(doc, "10. Environmental, Social, Climate, and GESI")
 
-    # 11.1 E&S Screening
-    _h2(doc, "11.1 Environmental and Social Screening")
+    # 10.1 E&S Screening
+    _h2(doc, "10.1 Environmental and Social Screening")
     if ess:
         esia_cat = _g(ess, "esia_category") or "B"
         esia_rationale = _g(ess, "esia_rationale") or ""
@@ -1529,7 +1981,7 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
         _para(doc, f"ESIA Classification: Category {esia_cat}. {esia_rationale}")
         _para(doc, f"Overall ESS risk: {overall_ess.upper()}")
 
-        _table_caption(doc, "Table 11-1: E&S risk screening")
+        _table_caption(doc, "Table 10-1: E&S risk screening")
         es_table = [
             ["Risk Area", "Risk Level", "Notes"],
             ["Land Acquisition", resettle_risk.title(), _g(ess, "resettlement_notes") or ""],
@@ -1547,10 +1999,16 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
         ]
         _add_table(doc, es_table)
 
+        _para(doc,
+              f"The E&S screening indicates an overall risk level of {overall_ess.upper()}. "
+              f"Land acquisition risk is assessed as {resettle_risk.lower()}, and biodiversity "
+              f"sensitivity is {bio_sensitivity.lower()}. A full ESIA (Category {esia_cat}) is "
+              f"required under Decree 54/2015 and should be initiated during the feasibility phase.")
+
         # Protected areas
         pa_checks = _g(ess, "protected_area_checks") or []
         if pa_checks:
-            _table_caption(doc, "Table 11-2: Protected area proximity")
+            _table_caption(doc, "Table 10-2: Protected area proximity")
             pa_table = [["Protected Area", "Distance (km)", "Buffer Zone", "Sensitivity"]]
             for pa in pa_checks:
                 if isinstance(pa, dict):
@@ -1566,6 +2024,11 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
                         getattr(pa, "sensitivity", "").title(),
                     ])
             _add_table(doc, pa_table)
+
+            _para(doc,
+                  "Protected area proximity must be assessed during the ESIA process to ensure "
+                  "compliance with biodiversity safeguards. Any site within a buffer zone requires "
+                  "additional environmental assessment and may face permitting constraints.")
     else:
         suitable = _g(screening, "is_suitable")
         _para(doc,
@@ -1573,8 +2036,8 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
               f"for development. Detailed ESIA required during full feasibility.")
         _placeholder(doc, "[Full E&S screening to be completed during feasibility phase]")
 
-    # 11.2 Climate Rationale
-    _h2(doc, "11.2 Climate Rationale")
+    # 10.2 Climate Rationale
+    _h2(doc, "10.2 Climate Rationale")
     if climate or carbon:
         ann_reductions = _g(carbon, "annual_emission_reductions_tco2e") or 0
         lifetime_avoided = _g(climate, "lifetime_avoided_tco2e") or (ann_reductions * 25 * 0.94)
@@ -1582,7 +2045,7 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
         ndc_text = _g(climate, "ndc_alignment") or ""
         adapt_text = _g(climate, "adaptation_narrative") or ""
 
-        _table_caption(doc, "Table 11-3: Climate rationale summary")
+        _table_caption(doc, "Table 10-3: Climate rationale summary")
         climate_table = [
             ["Parameter", "Value"],
             ["Annual Avoided Emissions", f"{ann_reductions:.1f} tCO2e/year"],
@@ -1592,6 +2055,13 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
         ]
         _add_table(doc, climate_table)
 
+        _para(doc,
+              f"The project avoids approximately {ann_reductions:.1f} tCO2e per year through "
+              f"displacement of diesel generation and kerosene lighting, with lifetime avoided "
+              f"emissions of {lifetime_avoided:,.0f} tCO2e over a 25-year concession. These "
+              f"emission reductions support eligibility for carbon credit instruments and "
+              f"climate finance mechanisms.")
+
         if ndc_text:
             _para(doc, f"NDC Alignment: {ndc_text}")
         if adapt_text:
@@ -1600,7 +2070,7 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
         # Hazards
         hazards = _g(climate, "hazards") or []
         if hazards:
-            _table_caption(doc, "Table 11-4: Climate hazard exposure")
+            _table_caption(doc, "Table 10-4: Climate hazard exposure")
             hz_table = [["Hazard", "Level", "Description", "Design Measures"]]
             for hz in hazards:
                 if isinstance(hz, dict):
@@ -1621,10 +2091,15 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
                     ])
             _add_table(doc, hz_table)
 
+            _para(doc,
+                  "Climate hazard exposure is a key consideration for system design and insurance. "
+                  "The design measures identified above should be incorporated into the detailed "
+                  "engineering design to ensure system resilience over the concession period.")
+
         # Climate finance
         cf_items = _g(climate, "climate_finance") or []
         if cf_items:
-            _table_caption(doc, "Table 11-5: Climate finance eligibility")
+            _table_caption(doc, "Table 10-5: Climate finance eligibility")
             cf_table = [["Instrument", "Eligible", "Rationale", "Est. Value (USD)"]]
             for cfi in cf_items:
                 if isinstance(cfi, dict):
@@ -1642,11 +2117,16 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
                         f"{getattr(cfi, 'estimated_value_usd', 0):,.0f}" if getattr(cfi, "estimated_value_usd", 0) else "--",
                     ])
             _add_table(doc, cf_table)
+
+            _para(doc,
+                  "Climate finance instruments can provide additional revenue or grant funding "
+                  "to improve project viability. Eligibility for each instrument should be "
+                  "confirmed during the full feasibility phase with the relevant funding bodies.")
     else:
         _placeholder(doc, "[Climate rationale and carbon assessment to be completed]")
 
-    # 11.3 Gender and Inclusion
-    _h2(doc, "11.3 Gender Equality and Social Inclusion (GESI)")
+    # 10.3 Gender and Inclusion
+    _h2(doc, "10.3 Gender Equality and Social Inclusion (GESI)")
     gesi = _g(ess, "gesi_considerations") or []
     women_opp = _g(ess, "womens_empowerment_opportunities") or []
     inclusion = _g(ess, "inclusion_measures") or []
@@ -1654,8 +2134,8 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
     if gesi or women_opp or inclusion:
         if gesi:
             _para(doc, "GESI Considerations:", bold=True)
-            for g in gesi:
-                _bullet(doc, g)
+            for g_item in gesi:
+                _bullet(doc, g_item)
         if women_opp:
             _para(doc, "Women's Empowerment Opportunities:", bold=True)
             for w in women_opp:
@@ -1664,6 +2144,12 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
             _para(doc, "Inclusion Measures:", bold=True)
             for m in inclusion:
                 _bullet(doc, m)
+
+        _para(doc,
+              "Gender and inclusion are central to the project's development impact and are "
+              "increasingly required by DFI and climate finance partners. A detailed GESI action "
+              "plan should be developed during community consultation to ensure equitable benefits "
+              "from electrification.")
     else:
         _para(doc,
               "Gender and inclusion considerations are critical for equitable project design. "
@@ -1677,9 +2163,9 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
     doc.add_page_break()
 
     # ══════════════════════════════════════════════════════════════
-    # 12. RISK MATRIX
+    # 11. RISK MATRIX (was Section 12)
     # ══════════════════════════════════════════════════════════════
-    _h1(doc, "12. Risk Matrix")
+    _h1(doc, "11. Risk Matrix")
 
     risks = _g(risk_analysis, "risks") or []
     if risks:
@@ -1689,7 +2175,7 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
               f"Overall project risk is assessed as {overall_level.upper()} "
               f"with a composite score of {overall_score:.1f}/25.")
 
-        _table_caption(doc, "Table 12-1: Project risk register")
+        _table_caption(doc, "Table 11-1: Project risk register")
         risk_table = [["Risk", "Probability", "Impact", "Mitigation", "Owner"]]
         for ri in risks:
             if isinstance(ri, dict):
@@ -1711,9 +2197,16 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
                     getattr(ri, "allocation", "Shared").title(),
                 ])
         _add_table(doc, risk_table, small=True)
+
+        _para(doc,
+              f"The risk register identifies {len(risks)} material risks across technical, "
+              f"financial, regulatory, and environmental categories. The overall risk score of "
+              f"{overall_score:.1f}/25 indicates a {overall_level.lower()} risk profile. Key "
+              f"mitigation strategies include PUE demand stimulation to de-risk demand shortfall, "
+              f"anchor customer contracting to secure revenue certainty, and grid-arrival "
+              f"contractual protections.")
     else:
-        # Default risk register
-        _table_caption(doc, "Table 12-1: Project risk register")
+        _table_caption(doc, "Table 11-1: Project risk register")
         default_risks = [
             ["Risk", "Probability", "Impact", "Mitigation", "Owner"],
             ["Demand below forecast", "3/5", "4/5", "PUE demand stimulation; phased build-out", "Developer / DFI"],
@@ -1731,14 +2224,21 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
         ]
         _add_table(doc, default_risks, small=True)
 
+        _para(doc,
+              "The risk register above presents the standard risk profile for an isolated solar "
+              "PV mini-grid in Mozambique. The highest-impact risks are demand shortfall, grid "
+              "arrival, and subsidy disbursement delays. Mitigation strategies are aligned with "
+              "the PUE-led approach, emphasising demand activation, anchor contracting, and "
+              "blended finance structuring to manage downside scenarios.")
+
     doc.add_page_break()
 
     # ══════════════════════════════════════════════════════════════
-    # 13. IMPLEMENTATION PLAN
+    # 12. IMPLEMENTATION PLAN (was Section 13)
     # ══════════════════════════════════════════════════════════════
-    _h1(doc, "13. Implementation Plan")
+    _h1(doc, "12. Implementation Plan")
 
-    _table_caption(doc, "Table 13-1: Implementation timeline")
+    _table_caption(doc, "Table 12-1: Implementation timeline")
     impl_data = [
         ["Phase", "Activity", "Duration", "Milestone"],
         ["1", "Full Feasibility Study (field survey, demand validation, detailed design)", "3-4 months",
@@ -1766,90 +2266,92 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
 
     _para(doc,
           "Total estimated timeline from feasibility to COD: 18-30 months, depending on "
-          "regulatory processing speed and financing timelines.",
+          "regulatory processing speed and financing timelines. Critical path activities include "
+          "the full feasibility study (which must validate demand and anchor customers), concession "
+          "approval, and financial close. Parallel workstreams for ESIA, land rights, and "
+          "procurement can compress the overall timeline.",
           italic=True, size=10, color=_GREY)
 
     doc.add_page_break()
 
     # ══════════════════════════════════════════════════════════════
-    # 14. ARENE CONCESSION DATA SHEET ANNEX
+    # 13. ARENE CONCESSION DATA SHEET ANNEX (was Section 14)
     # ══════════════════════════════════════════════════════════════
-    _h1(doc, "14. ARENE Concession Data Sheet Annex")
+    _h1(doc, "13. ARENE Concession Data Sheet Annex")
 
     _para(doc,
           "This annex presents the project data in the format required by ARENE for concession "
           "application assessment, following the 14-section structure specified in the Terms of "
           "Reference for pre-feasibility studies.")
 
-    # Section-by-section annex
     annex_sections = [
-        ("14.1", "Identification", [
+        ("13.1", "Identification", [
             ("Site Name", site_name),
             ("Coordinates", f"{abs(lat):.4f} S, {abs(lon):.4f} E"),
             ("Province / District", f"{province} / {district}"),
             ("Population", f"{population:,}"),
             ("Concession Term", f"{conc_term} years"),
         ]),
-        ("14.2", "Baseline", [
+        ("13.2", "Baseline", [
             ("Current Households", f"{households:,}"),
             ("Electrification Status", "Unelectrified" if not has_nightlight else "Partial"),
             ("Road Access", f"{dist_road:.1f} km to main road"),
             ("Grid Distance", f"{dist_mv:.1f} km (MV)"),
         ]),
-        ("14.3", "Demand", [
+        ("13.3", "Demand", [
             ("Year-1 Energy", f"{annual_energy:,.0f} kWh/year"),
             ("Peak Demand", f"{peak_kw:.1f} kW"),
             ("Demand Tier", f"Tier {_g(demand, 'demand_tier') or '--'}"),
         ]),
-        ("14.4", "Anchor Customers", [
+        ("13.4", "Anchor Customers", [
             ("Number Identified", f"{len(anchors)}"),
             ("Total Anchor Demand", f"{sum(a.get('estimated_demand_kwh_day', 0) if isinstance(a, dict) else getattr(a, 'estimated_demand_kwh_day', 0) for a in anchors):.1f} kWh/day" if anchors else "--"),
         ]),
-        ("14.5", "Productive Use", [
+        ("13.5", "Productive Use", [
             ("PUE Demand Share", f"{pu_demand_pct:.0f}%"),
             ("Total PUE Demand", f"{pu_kwh_day:.1f} kWh/day"),
             ("Sectors Assessed", f"{len(sectors)}"),
         ]),
-        ("14.6", "Resource and Technical", [
+        ("13.6", "Resource and Technical", [
             ("GHI", f"{ghi:,.0f} kWh/m2/year"),
             ("PV Capacity", f"{pv_kwp:.1f} kWp"),
             ("Battery", f"{batt_usable:.0f} kWh usable"),
             ("Annual Generation", f"{ann_gen / 1000:.1f} MWh/year" if ann_gen else "--"),
         ]),
-        ("14.7", "CAPEX / OPEX", [
+        ("13.7", "CAPEX / OPEX", [
             ("Total CAPEX", _usd(total_capex)),
             ("Annual OPEX", _usd(annual_opex)),
             ("CAPEX / Connection", f"USD {capex_per_conn:,.0f}"),
         ]),
-        ("14.8", "Financial / Tariff", [
+        ("13.8", "Financial / Tariff", [
             ("Project IRR", f"{irr:.1f}%"),
             ("LCOE", _usd_kwh(lcoe)),
             ("Cost-Reflective Tariff", _usd_kwh(cost_reflective)),
             ("Subsidy Requirement", f"{subsidy_gap_pct:.0f}% of CAPEX"),
         ]),
-        ("14.9", "ESIA", [
+        ("13.9", "ESIA", [
             ("Category", _g(ess, "esia_category") or "[To be determined]"),
             ("Overall ESS Risk", (_g(ess, "overall_ess_risk") or "[To be assessed]").title()),
         ]),
-        ("14.10", "Climate", [
+        ("13.10", "Climate", [
             ("Annual Avoided tCO2e", f"{_g(carbon, 'annual_emission_reductions_tco2e') or 0:.1f}"),
             ("Overall Hazard Level", (_g(climate, "overall_hazard_level") or "[To be assessed]").title()),
         ]),
-        ("14.11", "Risk", [
+        ("13.11", "Risk", [
             ("Overall Risk Level", (_g(risk_analysis, "overall_risk_level") or "Medium").title()),
             ("Risk Score", f"{_g(risk_analysis, 'overall_risk_score') or '--'}/25"),
         ]),
-        ("14.12", "Performance Standards", [
+        ("13.12", "Performance Standards", [
             ("Availability Target", "98%"),
             ("SAIDI Target", "150 hours/year"),
             ("Metering", "Prepaid smart meters, Class 1"),
         ]),
-        ("14.13", "Concession Terms", [
+        ("13.13", "Concession Terms", [
             ("Duration", f"{conc_term} years"),
             ("Exclusivity", "Exclusive within boundary"),
             ("Tariff Review", "Every 3 years"),
         ]),
-        ("14.14", "Attachments Required", [
+        ("13.14", "Attachments Required", [
             ("Geospatial Files", "Settlement coordinates and boundary"),
             ("Financial Model", "Excel workbook"),
             ("Distribution Layout", "Preliminary network design"),
@@ -1868,12 +2370,12 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
     doc.add_page_break()
 
     # ══════════════════════════════════════════════════════════════
-    # 15. AI CONFIDENCE AND EVIDENCE ANNEX
+    # 14. AI CONFIDENCE AND EVIDENCE ANNEX (was Section 15)
     # ══════════════════════════════════════════════════════════════
-    _h1(doc, "15. AI Confidence and Evidence Annex")
+    _h1(doc, "14. AI Confidence and Evidence Annex")
 
-    # 15.1 Confidence Score Table
-    _h2(doc, "15.1 Confidence Scores")
+    # 14.1 Confidence Score Table
+    _h2(doc, "14.1 Confidence Scores")
     dimensions = _g(confidence, "dimensions") or []
     overall_conf_score = _g(confidence, "overall_confidence_score") or 0
     overall_conf_level = _g(confidence, "overall_confidence_level") or "medium"
@@ -1885,7 +2387,7 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
               f"({overall_conf_level.upper()}). "
               f"Data completeness: {data_completeness:.0f}%.")
 
-        _table_caption(doc, "Table 15-1: Confidence scores by analysis dimension")
+        _table_caption(doc, "Table 14-1: Confidence scores by analysis dimension")
         conf_table = [["Output", "Value", "Confidence (%)", "Margin of Error", "Evidence Grade"]]
         for dim in dimensions:
             if isinstance(dim, dict):
@@ -1906,6 +2408,12 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
                 ])
         _add_table(doc, conf_table)
 
+        _para(doc,
+              f"The overall confidence score of {overall_conf_score}/100 reflects the desktop "
+              f"nature of this pre-feasibility study. Data completeness of {data_completeness:.0f}% "
+              f"indicates that several key inputs require field verification. Dimensions with "
+              f"lower confidence scores should be prioritised during the full feasibility phase.")
+
         # Key assumptions per dimension
         _h3(doc, "Key Assumptions by Dimension")
         for dim in dimensions:
@@ -1920,8 +2428,7 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
                 for a in assumptions:
                     _bullet(doc, a)
     else:
-        # Default confidence table
-        _table_caption(doc, "Table 15-1: Indicative confidence scores")
+        _table_caption(doc, "Table 14-1: Indicative confidence scores")
         conf_table = [
             ["Output", "Confidence (%)", "Margin of Error", "Evidence Grade"],
             ["Population / Households", "70%", "+/- 15%", "B"],
@@ -1935,6 +2442,12 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
         ]
         _add_table(doc, conf_table)
 
+        _para(doc,
+              "The indicative confidence scores above reflect the standard uncertainty profile "
+              "for a desktop pre-feasibility study. Population and household counts have the "
+              "highest confidence (Grade B) as they are derived from satellite imagery. Demand "
+              "and financial projections carry wider margins of error and require field validation.")
+
     # Recommendations
     recs = _g(confidence, "recommendations") or []
     if recs:
@@ -1942,9 +2455,9 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
         for rec in recs:
             _bullet(doc, rec)
 
-    # 15.2 Evidence Grading Legend
-    _h2(doc, "15.2 Evidence Grading Legend")
-    _table_caption(doc, "Table 15-2: Evidence grading system")
+    # 14.2 Evidence Grading Legend
+    _h2(doc, "14.2 Evidence Grading Legend")
+    _table_caption(doc, "Table 14-2: Evidence grading system")
     grade_data = [
         ["Grade", "Label", "Description"],
         ["A", "Field Verified", "Data collected through on-site survey or measurement"],
@@ -1988,6 +2501,13 @@ def generate_pfs_report(result: dict, site_name: str, output_path: str) -> str:
                     f"${getattr(cf, 'cumulative', 0):,.0f}",
                 ])
         _add_table(doc, cf_full, small=True)
+
+        _para(doc,
+              "The 25-year cash flow projection above includes all revenue, operating costs, "
+              "and replacement provisions. Battery replacement is typically required at Year 10-12 "
+              "and represents the largest single replacement cost item. The cumulative cash flow "
+              "column shows the project's trajectory toward payback and positive returns.",
+              italic=True, size=10, color=_GREY)
     else:
         _placeholder(doc, "[25-year cash flow to be generated from financial model]")
 
