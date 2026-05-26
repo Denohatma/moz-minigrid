@@ -20,6 +20,31 @@ from app.engines.confidence_engine import score_confidence
 from app.engines.concession_engine import generate_concession_data
 
 
+DIST_TARGET_PCT = 0.27
+DIST_TOLERANCE = 0.015
+
+
+def _dist_share(financial, distribution):
+    """Distribution's share of equipment subtotal (= share of total CAPEX
+    since the overhead multiplier is uniform across all components)."""
+    bk = financial.capex_breakdown
+    gen = (bk.pv or 0) + (bk.battery or 0) + (bk.inverter or 0) + (bk.civil_works or 0)
+    dist = distribution.total_network_cost_usd
+    equip = gen + dist
+    return (dist / equip if equip > 0 else 0), gen
+
+
+def _apply_pue_scaling(demand, hourly_demand, pue_kwh_day):
+    """Add PUE demand on top of residential demand."""
+    demand.productive_use_kwh_day = pue_kwh_day
+    combined = demand.daily_energy_kwh + pue_kwh_day
+    scale = combined / demand.daily_energy_kwh if demand.daily_energy_kwh > 0 else 1.0
+    demand.daily_energy_kwh = round(combined, 2)
+    demand.annual_energy_kwh = round(combined * 365, 1)
+    demand.peak_demand_kw = round(demand.peak_demand_kw * scale, 2)
+    return demand, [h * scale for h in hourly_demand]
+
+
 def run_full_analysis(
     latitude: float,
     longitude: float,
@@ -36,6 +61,7 @@ def run_full_analysis(
       5. Distribution network design (radial estimate + BoQ)
       6. Carbon assessment (emission reductions + credit revenue)
       7. Financial model (25-year DCF with granular CAPEX/OPEX)
+      7b. Distribution calibration — adjust coverage so dist = 27% of CAPEX
       8. Grid risk assessment (ESMAP scenario scoring)
       9. Productive use value chain analysis
      10. Environmental & social safeguards screening
@@ -63,14 +89,7 @@ def run_full_analysis(
     pue_kwh_day = 0.0
     if productive_use:
         pue_kwh_day = productive_use.total_productive_demand_kwh_day
-        demand.productive_use_kwh_day = pue_kwh_day
-        # Add PUE demand to residential for combined sizing
-        combined_daily = demand.daily_energy_kwh + pue_kwh_day
-        scale = combined_daily / demand.daily_energy_kwh if demand.daily_energy_kwh > 0 else 1.0
-        demand.daily_energy_kwh = round(combined_daily, 2)
-        demand.annual_energy_kwh = round(combined_daily * 365, 1)
-        demand.peak_demand_kw = round(demand.peak_demand_kw * scale, 2)
-        hourly_demand = [h * scale for h in hourly_demand]
+        demand, hourly_demand = _apply_pue_scaling(demand, hourly_demand, pue_kwh_day)
 
     sizing = size_system(
         cluster, demand, solar_resource, hourly_demand, hourly_solar, overrides
@@ -82,6 +101,47 @@ def run_full_analysis(
     carbon = assess_carbon(annual_served)
 
     financial = run_financial_model(sizing, demand, distribution, carbon, overrides)
+
+    # ── Calibrate coverage so distribution = 27% of total CAPEX ──
+    # ESMAP benchmark: distribution is 26-27% of total mini-grid CAPEX.
+    # Adjust number of connections (coverage) to hit that target.
+    dist_pct, gen_equip = _dist_share(financial, distribution)
+
+    if (distribution
+            and abs(dist_pct - DIST_TARGET_PCT) > DIST_TOLERANCE
+            and distribution.cost_per_connection_usd > 0
+            and "coverage_pct" not in overrides):
+        total_hh = demand.total_settlement_households
+        cost_per_conn = distribution.cost_per_connection_usd
+
+        for _ in range(3):
+            target_dist = gen_equip * DIST_TARGET_PCT / (1 - DIST_TARGET_PCT)
+            target_n = max(1, min(round(target_dist / cost_per_conn), total_hh))
+            new_coverage = target_n / max(total_hh, 1)
+
+            adj_overrides = {**overrides, "coverage_pct": new_coverage}
+            demand, hourly_demand = estimate_demand(cluster, adj_overrides)
+
+            if pue_kwh_day > 0:
+                demand, hourly_demand = _apply_pue_scaling(
+                    demand, hourly_demand, pue_kwh_day
+                )
+
+            sizing = size_system(
+                cluster, demand, solar_resource,
+                hourly_demand, hourly_solar, overrides,
+            )
+            distribution = design_distribution(cluster, demand, adj_overrides)
+
+            annual_served = sizing.annual_energy_served_kwh or demand.annual_energy_kwh
+            carbon = assess_carbon(annual_served)
+            financial = run_financial_model(
+                sizing, demand, distribution, carbon, overrides
+            )
+
+            dist_pct, gen_equip = _dist_share(financial, distribution)
+            if abs(dist_pct - DIST_TARGET_PCT) < DIST_TOLERANCE:
+                break
 
     grid_risk = assess_grid_risk(cluster, financial)
 
