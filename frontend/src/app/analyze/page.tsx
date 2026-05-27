@@ -678,32 +678,32 @@ function ReviewPanel({
 
           <div className="space-y-2">
             <SectionHeader label="Population & Buildings" />
-            <DataRow label="Population" value={cluster.population.toLocaleString()} />
-            {cluster.num_buildings != null && <DataRow label="Buildings" value={cluster.num_buildings.toLocaleString()} />}
-            {cluster.dre_num_connections != null && <DataRow label="Est. connections" value={cluster.dre_num_connections.toLocaleString()} />}
+            <DataRow label="Population" value={cluster.population.toLocaleString()} tip="WorldPop 2020 constrained estimate, disaggregated to settlement footprint." />
+            {cluster.num_buildings != null && <DataRow label="Buildings" value={cluster.num_buildings.toLocaleString()} tip="Satellite-detected structures (Google Open Buildings). Includes non-residential structures such as storage, workshops, and community buildings — not a direct household count." />}
+            {cluster.dre_num_connections != null && <DataRow label="Est. connections" value={cluster.dre_num_connections.toLocaleString()} tip="Estimated metering points from the DRE Atlas demand model. Used as the basis for Round 1 coverage sizing." />}
             <DataRow label="Area" value={`${cluster.area_km2.toFixed(3)} km²`} />
             {cluster.building_density_pct != null && <DataRow label="Building density" value={`${cluster.building_density_pct.toFixed(1)}%`} />}
           </div>
 
           <div className="space-y-2">
             <SectionHeader label="Energy & Demand" />
-            <DataRow label="Solar PV potential" value={`${cluster.ghi_kwh_m2_year.toFixed(0)} kWh/kWp/yr`} />
-            {cluster.dre_demand_kwh_day != null && <DataRow label="Est. demand" value={`${cluster.dre_demand_kwh_day.toFixed(1)} kWh/day`} />}
+            <DataRow label="Solar PV potential" value={`${cluster.ghi_kwh_m2_year.toFixed(0)} kWh/kWp/yr`} tip="Global Horizontal Irradiance from PVGIS/SolarGIS. Converted to specific yield using a performance-ratio model with temperature, soiling, and wiring losses." />
+            {cluster.dre_demand_kwh_day != null && <DataRow label="Est. demand" value={`${cluster.dre_demand_kwh_day.toFixed(1)} kWh/day`} tip="DRE Atlas bottom-up estimate: per-connection demand x connections. Validated against MTF survey benchmarks for Mozambique Tier 2–3 settlements." />}
             {cluster.dre_demand_per_conn_kwh_day != null && <DataRow label="Demand/connection" value={`${cluster.dre_demand_per_conn_kwh_day.toFixed(3)} kWh/day`} />}
-            <DataRow label="Nightlight" value={cluster.has_nightlight ? `Yes (${cluster.nightlight_overlap_pct?.toFixed(0) ?? 0}% coverage)` : "No"} />
+            <DataRow label="Nightlight" value={cluster.has_nightlight ? `Yes (${cluster.nightlight_overlap_pct?.toFixed(0) ?? 0}% coverage)` : "No"} tip="VIIRS nighttime lights overlap. Indicates possible existing electricity access (grid, diesel genset, or solar home systems)." />
           </div>
 
           <div className="space-y-2">
             <SectionHeader label="Grid & Infrastructure" />
-            <DataRow label="Existing grid" value={`${cluster.dist_grid_mv_km.toFixed(1)} km`} />
-            {cluster.dist_grid_planned_km != null && <DataRow label="Planned grid" value={`${cluster.dist_grid_planned_km.toFixed(1)} km`} />}
-            <DataRow label="Main road" value={cluster.main_road_access ? `${cluster.dist_road_km.toFixed(1)} km (access)` : `${cluster.dist_road_km.toFixed(1)} km`} />
+            <DataRow label="Existing MV grid" value={`${cluster.dist_grid_mv_km.toFixed(1)} km`} tip="Straight-line distance to nearest existing medium-voltage (33 kV) line from EDM network GIS data. Actual route distance may be 20–40% longer." />
+            {cluster.dist_grid_planned_km != null && <DataRow label="Planned grid" value={`${cluster.dist_grid_planned_km.toFixed(1)} km`} tip="Distance to nearest planned grid extension from EDM/FUNAE master plan. Planned ≠ committed — verify implementation status with ARENE before relying on this for grid-arrival assumptions." />}
+            <DataRow label="Main road" value={cluster.main_road_access ? `${cluster.dist_road_km.toFixed(1)} km (access)` : `${cluster.dist_road_km.toFixed(1)} km`} tip="Distance to nearest classified road (OSM). Road access affects logistics cost, construction timeline, and ongoing O&M." />
             {cluster.nearest_hub_name && <DataRow label="Nearest hub" value={`${cluster.nearest_hub_name} (${cluster.dist_nearest_hub_km?.toFixed(0) ?? "?"} km)`} />}
           </div>
 
           <div className="space-y-2">
             <SectionHeader label="Social & Economic" />
-            {cluster.mean_rwi != null && <DataRow label="Wealth index" value={cluster.mean_rwi.toFixed(2)} />}
+            {cluster.mean_rwi != null && <DataRow label="Wealth index (RWI)" value={cluster.mean_rwi.toFixed(2)} tip="Relative Wealth Index from Meta Data for Good. Scale is centered at 0 (national median): positive = above median, negative = below. Based on satellite imagery, mobile connectivity, and survey calibration. Used to estimate willingness-to-pay and tariff affordability." />}
             <DataRow label="Education" value={cluster.has_education_facility ? `Yes (${cluster.num_education_facilities ?? 0})` : "None nearby"} />
             <DataRow label="Healthcare" value={cluster.has_health_facility ? `Yes (${cluster.num_health_facilities ?? 0})` : "None nearby"} />
             {cluster.crop_types && <DataRow label="Crops" value={cluster.crop_types} />}
@@ -711,6 +711,7 @@ function ReviewPanel({
               <DataRow
                 label="Security"
                 value={cluster.security_risk.charAt(0).toUpperCase() + cluster.security_risk.slice(1)}
+                tip="Based on ACLED conflict data: incidents and fatalities within 25 km and 50 km radii over the past 3 years."
               />
             )}
           </div>
@@ -847,7 +848,7 @@ function DesignPanel({
           <DataRow label="Poles" value={`${dist.pole_count}`} />
           <DataRow label="Customers" value={`${dist.customers_connected}`} />
           <DataRow label="Network Cost" value={`$${(dist.total_network_cost_usd / 1000).toFixed(1)}k`} />
-          <DataRow label="Cost/Connection" value={`$${dist.cost_per_connection_usd.toFixed(0)}`} />
+          <DataRow label="Cost/Connection" value={`$${dist.cost_per_connection_usd.toFixed(0)}`} tip="Distribution network cost per metered connection (poles, wire, meters, labour). ESMAP benchmark: $250–500/connection for rural Mozambique." />
           <DataRow label="Voltage Drop" value={`${dist.voltage_drop_max_pct.toFixed(1)}%`} />
           <DataRow label="Technical Losses" value={`${dist.technical_losses_pct.toFixed(1)}%`} />
         </div>
@@ -955,7 +956,7 @@ function OptimizePanel({
         {f.debt_amount_usd != null && <DataRow label="Concessional Debt" value={`$${(f.debt_amount_usd / 1000).toFixed(0)}k`} />}
         {f.equity_amount_usd != null && <DataRow label="Developer Equity" value={`$${(f.equity_amount_usd / 1000).toFixed(0)}k`} />}
         {f.annual_opex_usd != null && <DataRow label="Annual OPEX" value={`$${(f.annual_opex_usd / 1000).toFixed(1)}k`} />}
-        <DataRow label="Subsidy gap" value={`$${f.subsidy_gap_per_connection_usd.toFixed(0)}/conn (${f.subsidy_gap_pct_capex.toFixed(0)}% CAPEX)`} />
+        <DataRow label="Subsidy gap" value={`$${f.subsidy_gap_per_connection_usd.toFixed(0)}/conn (${f.subsidy_gap_pct_capex.toFixed(0)}% CAPEX)`} tip="The additional funding needed per connection beyond what tariff revenue and carbon credits can recover. Different from cost/connection (total CAPEX ÷ connections): subsidy gap accounts for revenue the project can earn over its lifetime." />
       </div>
 
       {/* Editable cost inputs grouped */}
@@ -1308,11 +1309,31 @@ function CapexBar({
   );
 }
 
-function DataRow({ label, value }: { label: string; value: string }) {
+function DataRow({ label, value, tip }: { label: string; value: string; tip?: string }) {
+  const [showTip, setShowTip] = useState(false);
   return (
-    <div className="flex items-center justify-between rounded-md bg-slate-700/50 px-3 py-2">
-      <span className="text-xs text-slate-400">{label}</span>
-      <span className="text-sm font-medium text-white">{value}</span>
+    <div className="rounded-md bg-slate-700/50 px-3 py-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-slate-400 flex items-center gap-1">
+          {label}
+          {tip && (
+            <button
+              onClick={() => setShowTip(!showTip)}
+              className="text-slate-500 hover:text-slate-300 transition"
+              title="More info"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <circle cx="12" cy="12" r="10" strokeWidth="2" />
+                <path strokeWidth="2" d="M12 16v-4M12 8h.01" />
+              </svg>
+            </button>
+          )}
+        </span>
+        <span className="text-sm font-medium text-white">{value}</span>
+      </div>
+      {tip && showTip && (
+        <p className="mt-1.5 text-[11px] leading-relaxed text-slate-400 border-t border-slate-600/50 pt-1.5">{tip}</p>
+      )}
     </div>
   );
 }

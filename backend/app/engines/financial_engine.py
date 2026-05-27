@@ -34,7 +34,12 @@ def run_financial_model(
     """
     defaults = _load_defaults()
     overrides = overrides or {}
-    uc = defaults.get("capex_unit_costs", {})
+    uc = dict(defaults.get("capex_unit_costs", {}))
+    for _uc_key in ("pv_modules_usd_per_kwp", "battery_ems_usd_per_kwh",
+                     "inverters_usd_per_kwac", "mounting_usd_per_kwp",
+                     "bos_usd_per_kwp", "civil_works_fixed_usd"):
+        if _uc_key in overrides:
+            uc[_uc_key] = float(overrides[_uc_key])
     opex_cfg = defaults.get("opex", {})
     repl = defaults.get("replacement_cycles", {})
     fin = defaults.get("financing", {})
@@ -48,12 +53,12 @@ def run_financial_model(
 
     # ── CAPEX ───────────────────────────────────────────────────────
 
-    pv_cost = sizing.pv_kwp * uc.get("pv_modules_usd_per_kwp", 470)
-    inverter_cost = sizing.inverter_kva * uc.get("inverters_usd_per_kwac", 360)
-    mounting_cost = sizing.pv_kwp * uc.get("mounting_usd_per_kwp", 200)
-    bos_cost = sizing.pv_kwp * uc.get("bos_usd_per_kwp", 267)
-    battery_cost = sizing.battery_kwh_nominal * uc.get("battery_ems_usd_per_kwh", 322)
-    civil_cost = uc.get("civil_works_fixed_usd", 15000)
+    pv_cost = sizing.pv_kwp * uc.get("pv_modules_usd_per_kwp", 580)
+    inverter_cost = sizing.inverter_kva * uc.get("inverters_usd_per_kwac", 420)
+    mounting_cost = sizing.pv_kwp * uc.get("mounting_usd_per_kwp", 180)
+    bos_cost = sizing.pv_kwp * uc.get("bos_usd_per_kwp", 220)
+    battery_cost = sizing.battery_kwh_nominal * uc.get("battery_ems_usd_per_kwh", 285)
+    civil_cost = uc.get("civil_works_fixed_usd", 18000)
 
     dist_cost = distribution.total_network_cost_usd if distribution else 34000
 
@@ -134,7 +139,8 @@ def run_financial_model(
 
     # ── Tariff and demand ───────────────────────────────────────────
 
-    base_tariff = float(overrides.get("tariff", tariff_cfg.get("base_usd_kwh", 0.40)))
+    base_tariff = float(overrides.get("affordable_tariff",
+                        overrides.get("tariff", tariff_cfg.get("base_usd_kwh", 0.45))))
     y1_conn_pct = conn.get("year1_connection_pct", 0.60)
     base_growth = conn.get("base_pct_yr", 0.05)
 
