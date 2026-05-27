@@ -530,3 +530,56 @@ export async function downloadReport(
   if (!res.ok) throw new Error("Report generation failed");
   return res.blob();
 }
+
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export async function streamChat(
+  message: string,
+  history: ChatMessage[],
+  analysisResult?: AnalysisResult | null,
+  cluster?: ClusterInfo | null,
+  onChunk: (text: string) => void = () => {},
+): Promise<string> {
+  const res = await fetch(`${API_BASE}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message,
+      history: history.slice(-20),
+      analysis_result: analysisResult ?? undefined,
+      cluster: cluster ?? undefined,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Chat failed" }));
+    throw new Error(err.detail || "Chat failed");
+  }
+
+  const reader = res.body?.getReader();
+  if (!reader) throw new Error("No response stream");
+
+  const decoder = new TextDecoder();
+  let fullText = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const chunk = decoder.decode(value, { stream: true });
+    const lines = chunk.split("\n");
+    for (const line of lines) {
+      if (line.startsWith("data: ") && line !== "data: [DONE]") {
+        try {
+          const data = JSON.parse(line.slice(6));
+          if (data.text) {
+            fullText += data.text;
+            onChunk(fullText);
+          }
+        } catch { /* skip malformed */ }
+      }
+    }
+  }
+  return fullText;
+}

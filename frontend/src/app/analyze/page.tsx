@@ -34,8 +34,9 @@ import {
 } from "lucide-react";
 import Papa from "papaparse";
 import MozMap from "@/components/MozMap";
-import { analyzeSite, lookupCluster, downloadReport, fetchPrioritySites } from "@/lib/api";
-import type { AnalysisResult, ClusterInfo, PrioritySite } from "@/lib/api";
+import { analyzeSite, lookupCluster, downloadReport, fetchPrioritySites, streamChat } from "@/lib/api";
+import type { AnalysisResult, ClusterInfo, PrioritySite, ChatMessage } from "@/lib/api";
+import { MessageSquare, Send, Bot, User } from "lucide-react";
 
 interface ParsedSite {
   name?: string;
@@ -64,6 +65,11 @@ export default function AnalyzePage() {
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [inputMode, setInputMode] = useState<InputMode>("coordinates");
   const [parsedSites, setParsedSites] = useState<ParsedSite[]>([]);
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatStreaming, setChatStreaming] = useState(false);
+  const [streamingText, setStreamingText] = useState("");
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   const handleMapClick = useCallback((lat: number, lng: number) => {
     setLatitude(lat.toFixed(6));
@@ -156,25 +162,153 @@ export default function AnalyzePage() {
     }
   };
 
+  const handleChatSend = async () => {
+    const msg = chatInput.trim();
+    if (!msg || chatStreaming) return;
+    const userMsg: ChatMessage = { role: "user", content: msg };
+    setChatHistory((prev) => [...prev, userMsg]);
+    setChatInput("");
+    setChatStreaming(true);
+    setStreamingText("");
+    try {
+      const fullText = await streamChat(
+        msg,
+        chatHistory,
+        result,
+        cluster,
+        (partial) => setStreamingText(partial),
+      );
+      setChatHistory((prev) => [...prev, { role: "assistant", content: fullText }]);
+    } catch {
+      setChatHistory((prev) => [
+        ...prev,
+        { role: "assistant", content: "Sorry, I couldn't process that request. Please check that the API key is configured." },
+      ]);
+    } finally {
+      setChatStreaming(false);
+      setStreamingText("");
+    }
+  };
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatHistory, streamingText]);
+
   return (
-    <div className="min-h-screen bg-slate-900 flex flex-col">
-      <header className="border-b border-white/10 bg-slate-900/95 backdrop-blur sticky top-0 z-50">
-        <div className="mx-auto max-w-7xl px-6 py-3 flex items-center gap-4">
+    <div className="h-screen bg-slate-900 flex flex-col overflow-hidden">
+      <header className="border-b border-white/10 bg-slate-900/95 backdrop-blur sticky top-0 z-50 shrink-0">
+        <div className="px-4 py-2 flex items-center gap-3">
           <Link href="/" className="flex items-center gap-2 shrink-0">
-            <Zap className="h-6 w-6 text-emerald-400" />
-            <span className="font-bold text-white">Moz</span>
+            <Zap className="h-5 w-5 text-emerald-400" />
+            <span className="font-bold text-white text-sm">Moz</span>
           </Link>
           <span className="text-slate-600">|</span>
           <StepIndicator current={step} />
         </div>
       </header>
 
-      <div className="flex-1 flex">
-        <div className="flex-1 relative">
+      <div className="flex-1 flex min-h-0">
+        {/* Map — 25% */}
+        <div className="w-1/4 relative shrink-0">
           <MozMap onSiteSelect={handleMapClick} selectedSite={selectedSite} />
         </div>
 
-        <div className="w-[420px] border-l border-white/10 bg-slate-800/50 overflow-y-auto">
+        {/* Chat — 25% */}
+        <div className="w-1/4 border-l border-white/10 bg-slate-850 flex flex-col shrink-0">
+          <div className="px-3 py-2 border-b border-white/10 flex items-center gap-2 shrink-0">
+            <MessageSquare className="h-4 w-4 text-emerald-400" />
+            <span className="text-sm font-semibold text-white">AI Assistant</span>
+            <span className="text-[10px] text-slate-500 ml-auto">AFUR + Site Data</span>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-3 space-y-3">
+            {chatHistory.length === 0 && !chatStreaming && (
+              <div className="text-center py-8 space-y-3">
+                <Bot className="h-8 w-8 text-slate-600 mx-auto" />
+                <p className="text-xs text-slate-500 max-w-[200px] mx-auto">
+                  Ask about site data, policy, regulations, design tradeoffs, or financial analysis.
+                </p>
+                <div className="space-y-1.5">
+                  {[
+                    "Is this site viable for a mini-grid?",
+                    "What does the AFUR guide say about voltage drop?",
+                    "How can I reduce the LCOE?",
+                    "Explain the subsidy gap",
+                  ].map((q) => (
+                    <button
+                      key={q}
+                      onClick={() => { setChatInput(q); }}
+                      className="block w-full text-left text-[11px] text-slate-400 hover:text-white bg-slate-700/30 hover:bg-slate-700/60 rounded-md px-3 py-1.5 transition"
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {chatHistory.map((msg, i) => (
+              <div key={i} className={`flex gap-2 ${msg.role === "user" ? "justify-end" : ""}`}>
+                {msg.role === "assistant" && <Bot className="h-4 w-4 text-emerald-400 mt-1 shrink-0" />}
+                <div
+                  className={`rounded-lg px-3 py-2 text-xs leading-relaxed max-w-[90%] ${
+                    msg.role === "user"
+                      ? "bg-emerald-500/20 text-emerald-100"
+                      : "bg-slate-700/50 text-slate-200"
+                  }`}
+                >
+                  <div className="whitespace-pre-wrap">{msg.content}</div>
+                </div>
+                {msg.role === "user" && <User className="h-4 w-4 text-slate-400 mt-1 shrink-0" />}
+              </div>
+            ))}
+
+            {chatStreaming && streamingText && (
+              <div className="flex gap-2">
+                <Bot className="h-4 w-4 text-emerald-400 mt-1 shrink-0" />
+                <div className="rounded-lg px-3 py-2 text-xs leading-relaxed max-w-[90%] bg-slate-700/50 text-slate-200">
+                  <div className="whitespace-pre-wrap">{streamingText}</div>
+                </div>
+              </div>
+            )}
+
+            {chatStreaming && !streamingText && (
+              <div className="flex gap-2 items-center">
+                <Bot className="h-4 w-4 text-emerald-400 shrink-0" />
+                <div className="flex gap-1">
+                  <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                  <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                  <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                </div>
+              </div>
+            )}
+
+            <div ref={chatEndRef} />
+          </div>
+
+          <div className="p-2 border-t border-white/10 shrink-0">
+            <div className="flex gap-1.5">
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleChatSend()}
+                placeholder="Ask anything..."
+                className="flex-1 rounded-md bg-slate-700 border border-slate-600 px-3 py-2 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              />
+              <button
+                onClick={handleChatSend}
+                disabled={chatStreaming || !chatInput.trim()}
+                className="rounded-md bg-emerald-500 px-2.5 py-2 text-white hover:bg-emerald-400 disabled:opacity-40 transition shrink-0"
+              >
+                <Send className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Tool panel — 50% */}
+        <div className="flex-1 border-l border-white/10 bg-slate-800/50 overflow-y-auto">
           {step === "select" && (
             <SiteSelectPanel
               latitude={latitude}
