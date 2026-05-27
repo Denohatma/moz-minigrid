@@ -195,120 +195,124 @@ export default function AnalyzePage() {
   }, [chatHistory, streamingText]);
 
   return (
-    <div className="h-screen bg-slate-900 flex flex-col overflow-hidden">
-      <header className="border-b border-white/10 bg-slate-900/95 backdrop-blur sticky top-0 z-50 shrink-0">
+    <div className="h-screen bg-afcen-navy flex flex-col overflow-hidden">
+      {/* Header */}
+      <header className="border-b border-white/10 bg-afcen-navy/95 backdrop-blur sticky top-0 z-50 shrink-0">
         <div className="px-4 py-2 flex items-center gap-3">
           <Link href="/" className="flex items-center gap-2 shrink-0">
-            <Zap className="h-5 w-5 text-emerald-400" />
-            <span className="font-bold text-white text-sm">Moz</span>
+            <span className="text-sm font-semibold tracking-[0.18em] uppercase text-afcen-gold">AF</span>
+            <span className="font-semibold text-afcen-cream text-sm">Moz</span>
           </Link>
-          <span className="text-slate-600">|</span>
+          <span className="text-afcen-navy-mid">|</span>
           <StepIndicator current={step} />
         </div>
       </header>
 
       <div className="flex-1 flex min-h-0">
-        {/* Map — 25% */}
-        <div className="w-1/4 relative shrink-0">
-          <MozMap onSiteSelect={handleMapClick} selectedSite={selectedSite} />
-        </div>
-
-        {/* Chat — 25% */}
-        <div className="w-1/4 border-l border-white/10 bg-slate-850 flex flex-col shrink-0">
-          <div className="px-3 py-2 border-b border-white/10 flex items-center gap-2 shrink-0">
-            <MessageSquare className="h-4 w-4 text-emerald-400" />
-            <span className="text-sm font-semibold text-white">AI Assistant</span>
-            <span className="text-[10px] text-slate-500 ml-auto">AFUR + Site Data</span>
+        {/* Left column: Map (top) + Chat (bottom) — 37.5% */}
+        <div className="w-[37.5%] flex flex-col shrink-0 border-r border-white/8">
+          {/* Map */}
+          <div className="h-[40%] relative shrink-0">
+            <MozMap onSiteSelect={handleMapClick} selectedSite={selectedSite} />
           </div>
 
-          <div className="flex-1 overflow-y-auto p-3 space-y-3">
-            {chatHistory.length === 0 && !chatStreaming && (
-              <div className="text-center py-8 space-y-3">
-                <Bot className="h-8 w-8 text-slate-600 mx-auto" />
-                <p className="text-xs text-slate-500 max-w-[200px] mx-auto">
-                  Ask about site data, policy, regulations, design tradeoffs, or financial analysis.
-                </p>
-                <div className="space-y-1.5">
-                  {[
-                    "Is this site viable for a mini-grid?",
-                    "What does the AFUR guide say about voltage drop?",
-                    "How can I reduce the LCOE?",
-                    "Explain the subsidy gap",
-                  ].map((q) => (
-                    <button
-                      key={q}
-                      onClick={() => { setChatInput(q); }}
-                      className="block w-full text-left text-[11px] text-slate-400 hover:text-white bg-slate-700/30 hover:bg-slate-700/60 rounded-md px-3 py-1.5 transition"
-                    >
-                      {q}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+          {/* Chat */}
+          <div className="flex-1 flex flex-col min-h-0 bg-afcen-navy-light">
+            <div className="px-3 py-2 border-y border-white/8 flex items-center gap-2 shrink-0 bg-afcen-navy">
+              <MessageSquare className="h-3.5 w-3.5 text-afcen-gold" />
+              <span className="text-xs font-semibold uppercase tracking-[0.12em] text-afcen-cream">Assistant</span>
+              <span className="text-[9px] text-afcen-cream/40 ml-auto tracking-wider uppercase">AFUR + Data</span>
+            </div>
 
-            {chatHistory.map((msg, i) => (
-              <div key={i} className={`flex gap-2 ${msg.role === "user" ? "justify-end" : ""}`}>
-                {msg.role === "assistant" && <Bot className="h-4 w-4 text-emerald-400 mt-1 shrink-0" />}
-                <div
-                  className={`rounded-lg px-3 py-2 text-xs leading-relaxed max-w-[90%] ${
-                    msg.role === "user"
-                      ? "bg-emerald-500/20 text-emerald-100"
-                      : "bg-slate-700/50 text-slate-200"
-                  }`}
+            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+              {chatHistory.length === 0 && !chatStreaming && (
+                <div className="text-center py-6 space-y-3">
+                  <Bot className="h-7 w-7 text-afcen-gold/30 mx-auto" />
+                  <p className="text-[11px] text-afcen-cream/40 max-w-[200px] mx-auto leading-relaxed">
+                    Ask about site data, policy, design tradeoffs, or financial analysis.
+                  </p>
+                  <div className="space-y-1.5">
+                    {[
+                      "Is this site viable for a mini-grid?",
+                      "What does the AFUR guide say about voltage drop?",
+                      "How can I reduce the LCOE?",
+                      "Explain the subsidy gap",
+                    ].map((q) => (
+                      <button
+                        key={q}
+                        onClick={() => { setChatInput(q); }}
+                        className="block w-full text-left text-[11px] text-afcen-cream/50 hover:text-afcen-cream bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.04] rounded-md px-3 py-1.5 transition"
+                      >
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {chatHistory.map((msg, i) => (
+                <div key={i} className={`flex gap-2 ${msg.role === "user" ? "justify-end" : ""}`}>
+                  {msg.role === "assistant" && <Bot className="h-3.5 w-3.5 text-afcen-gold mt-1 shrink-0" />}
+                  <div
+                    className={`rounded-lg px-3 py-2 text-xs leading-relaxed max-w-[90%] ${
+                      msg.role === "user"
+                        ? "bg-afcen-gold/15 text-afcen-cream"
+                        : "bg-white/[0.04] text-afcen-cream/80"
+                    }`}
+                  >
+                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                  </div>
+                  {msg.role === "user" && <User className="h-3.5 w-3.5 text-afcen-cream/40 mt-1 shrink-0" />}
+                </div>
+              ))}
+
+              {chatStreaming && streamingText && (
+                <div className="flex gap-2">
+                  <Bot className="h-3.5 w-3.5 text-afcen-gold mt-1 shrink-0" />
+                  <div className="rounded-lg px-3 py-2 text-xs leading-relaxed max-w-[90%] bg-white/[0.04] text-afcen-cream/80">
+                    <div className="whitespace-pre-wrap">{streamingText}</div>
+                  </div>
+                </div>
+              )}
+
+              {chatStreaming && !streamingText && (
+                <div className="flex gap-2 items-center">
+                  <Bot className="h-3.5 w-3.5 text-afcen-gold shrink-0" />
+                  <div className="flex gap-1">
+                    <div className="w-1.5 h-1.5 bg-afcen-gold rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                    <div className="w-1.5 h-1.5 bg-afcen-gold rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                    <div className="w-1.5 h-1.5 bg-afcen-gold rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                  </div>
+                </div>
+              )}
+
+              <div ref={chatEndRef} />
+            </div>
+
+            <div className="p-2 border-t border-white/8 shrink-0 bg-afcen-navy">
+              <div className="flex gap-1.5">
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleChatSend()}
+                  placeholder="Ask anything..."
+                  className="flex-1 rounded-md bg-white/[0.05] border border-white/[0.08] px-3 py-2 text-xs text-afcen-cream placeholder:text-afcen-cream/30 focus:outline-none focus:ring-1 focus:ring-afcen-gold/50"
+                />
+                <button
+                  onClick={handleChatSend}
+                  disabled={chatStreaming || !chatInput.trim()}
+                  className="rounded-md bg-afcen-gold px-2.5 py-2 text-afcen-navy hover:bg-afcen-gold-light disabled:opacity-40 transition shrink-0"
                 >
-                  <div className="whitespace-pre-wrap">{msg.content}</div>
-                </div>
-                {msg.role === "user" && <User className="h-4 w-4 text-slate-400 mt-1 shrink-0" />}
+                  <Send className="h-3.5 w-3.5" />
+                </button>
               </div>
-            ))}
-
-            {chatStreaming && streamingText && (
-              <div className="flex gap-2">
-                <Bot className="h-4 w-4 text-emerald-400 mt-1 shrink-0" />
-                <div className="rounded-lg px-3 py-2 text-xs leading-relaxed max-w-[90%] bg-slate-700/50 text-slate-200">
-                  <div className="whitespace-pre-wrap">{streamingText}</div>
-                </div>
-              </div>
-            )}
-
-            {chatStreaming && !streamingText && (
-              <div className="flex gap-2 items-center">
-                <Bot className="h-4 w-4 text-emerald-400 shrink-0" />
-                <div className="flex gap-1">
-                  <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                  <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                  <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-                </div>
-              </div>
-            )}
-
-            <div ref={chatEndRef} />
-          </div>
-
-          <div className="p-2 border-t border-white/10 shrink-0">
-            <div className="flex gap-1.5">
-              <input
-                type="text"
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleChatSend()}
-                placeholder="Ask anything..."
-                className="flex-1 rounded-md bg-slate-700 border border-slate-600 px-3 py-2 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-              />
-              <button
-                onClick={handleChatSend}
-                disabled={chatStreaming || !chatInput.trim()}
-                className="rounded-md bg-emerald-500 px-2.5 py-2 text-white hover:bg-emerald-400 disabled:opacity-40 transition shrink-0"
-              >
-                <Send className="h-3.5 w-3.5" />
-              </button>
             </div>
           </div>
         </div>
 
-        {/* Tool panel — 50% */}
-        <div className="flex-1 border-l border-white/10 bg-slate-800/50 overflow-y-auto">
+        {/* Tool panel — 75% */}
+        <div className="flex-1 bg-afcen-navy-light overflow-y-auto">
           {step === "select" && (
             <SiteSelectPanel
               latitude={latitude}
@@ -386,29 +390,29 @@ function StepIndicator({ current }: { current: WizardStep }) {
           <div key={s.key} className="flex items-center flex-1 last:flex-none">
             <div className="flex items-center gap-2 shrink-0">
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
                   done
-                    ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]"
+                    ? "bg-afcen-gold shadow-[0_0_8px_rgba(211,165,74,0.3)]"
                     : active
-                      ? "bg-emerald-500/20 border-2 border-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.3)]"
-                      : "bg-slate-800 border border-slate-600"
+                      ? "bg-afcen-gold/20 border-2 border-afcen-gold shadow-[0_0_10px_rgba(211,165,74,0.15)]"
+                      : "bg-afcen-navy border border-white/10"
                 }`}
               >
                 {done ? (
-                  <CheckCircle className="w-4 h-4 text-white" />
+                  <CheckCircle className="w-3.5 h-3.5 text-afcen-navy" />
                 ) : (
-                  <Icon className={`w-4 h-4 ${active ? "text-emerald-400" : "text-slate-500"}`} />
+                  <Icon className={`w-3.5 h-3.5 ${active ? "text-afcen-gold" : "text-afcen-cream/30"}`} />
                 )}
               </div>
               <div className="hidden lg:block">
                 <p
-                  className={`text-xs font-semibold leading-tight ${
-                    done ? "text-emerald-400" : active ? "text-white" : "text-slate-500"
+                  className={`text-[11px] font-semibold leading-tight ${
+                    done ? "text-afcen-gold" : active ? "text-afcen-cream" : "text-afcen-cream/30"
                   }`}
                 >
                   {s.label}
                 </p>
-                <p className="text-[10px] leading-tight text-slate-500">
+                <p className="text-[9px] leading-tight text-afcen-cream/25">
                   {done ? "Complete" : active ? "In progress" : `Step ${i + 1}`}
                 </p>
               </div>
@@ -417,7 +421,7 @@ function StepIndicator({ current }: { current: WizardStep }) {
               <div className="flex-1 mx-2 h-0.5 rounded-full overflow-hidden min-w-[16px]">
                 <div
                   className={`h-full rounded-full transition-all duration-500 ${
-                    done ? "bg-emerald-500" : "bg-slate-700"
+                    done ? "bg-afcen-gold" : "bg-white/5"
                   }`}
                 />
               </div>
@@ -562,22 +566,22 @@ function SiteSelectPanel({
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-          <MapPin className="h-5 w-5 text-emerald-400" />
+        <h2 className="text-lg font-semibold text-afcen-cream flex items-center gap-2">
+          <MapPin className="h-5 w-5 text-afcen-gold" />
           Select Site
         </h2>
-        <p className="mt-1 text-sm text-slate-400">
+        <p className="mt-1 text-sm text-afcen-cream/50">
           Click the map, enter coordinates, upload a file, or pick a priority site.
         </p>
       </div>
 
-      <div className="flex rounded-lg bg-slate-700/50 p-0.5">
+      <div className="flex rounded-lg bg-white/[0.03] p-0.5">
         <button
           onClick={() => onInputModeChange("coordinates")}
           className={`flex-1 flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium transition ${
             inputMode === "coordinates"
-              ? "bg-slate-600 text-white"
-              : "text-slate-400 hover:text-slate-300"
+              ? "bg-afcen-gold/20 text-afcen-cream"
+              : "text-afcen-cream/40 hover:text-afcen-cream/70"
           }`}
         >
           <MapPin className="h-3.5 w-3.5" />
@@ -587,8 +591,8 @@ function SiteSelectPanel({
           onClick={() => onInputModeChange("upload")}
           className={`flex-1 flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium transition ${
             inputMode === "upload"
-              ? "bg-slate-600 text-white"
-              : "text-slate-400 hover:text-slate-300"
+              ? "bg-afcen-gold/20 text-afcen-cream"
+              : "text-afcen-cream/40 hover:text-afcen-cream/70"
           }`}
         >
           <Upload className="h-3.5 w-3.5" />
@@ -598,8 +602,8 @@ function SiteSelectPanel({
           onClick={() => onInputModeChange("priority")}
           className={`flex-1 flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium transition ${
             inputMode === "priority"
-              ? "bg-slate-600 text-white"
-              : "text-slate-400 hover:text-slate-300"
+              ? "bg-afcen-gold/20 text-afcen-cream"
+              : "text-afcen-cream/40 hover:text-afcen-cream/70"
           }`}
         >
           <Star className="h-3.5 w-3.5" />
@@ -610,7 +614,7 @@ function SiteSelectPanel({
       {inputMode === "coordinates" && (
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1">
+            <label className="block text-xs font-medium text-afcen-cream/50 mb-1">
               Latitude
             </label>
             <input
@@ -618,11 +622,11 @@ function SiteSelectPanel({
               value={latitude}
               onChange={(e) => onLatChange(e.target.value)}
               placeholder="-15.4347"
-              className="w-full rounded-md bg-slate-700 border border-slate-600 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              className="w-full rounded-md bg-white/[0.05] border border-white/[0.08] px-3 py-2 text-sm text-afcen-cream placeholder:text-afcen-cream/30 focus:outline-none focus:ring-1 focus:ring-afcen-gold/50"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1">
+            <label className="block text-xs font-medium text-afcen-cream/50 mb-1">
               Longitude
             </label>
             <input
@@ -630,7 +634,7 @@ function SiteSelectPanel({
               value={longitude}
               onChange={(e) => onLngChange(e.target.value)}
               placeholder="40.6734"
-              className="w-full rounded-md bg-slate-700 border border-slate-600 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              className="w-full rounded-md bg-white/[0.05] border border-white/[0.08] px-3 py-2 text-sm text-afcen-cream placeholder:text-afcen-cream/30 focus:outline-none focus:ring-1 focus:ring-afcen-gold/50"
             />
           </div>
         </div>
@@ -649,16 +653,16 @@ function SiteSelectPanel({
               onClick={() => fileInputRef.current?.click()}
               className={`cursor-pointer rounded-lg border-2 border-dashed p-6 text-center transition ${
                 dragActive
-                  ? "border-emerald-400 bg-emerald-500/10"
-                  : "border-slate-600 bg-slate-700/30 hover:border-slate-500"
+                  ? "border-afcen-gold bg-afcen-gold/10"
+                  : "border-white/[0.1] bg-white/[0.03] hover:border-white/[0.15]"
               }`}
             >
-              <FileSpreadsheet className="h-8 w-8 mx-auto text-slate-400 mb-2" />
-              <p className="text-sm text-slate-300">
+              <FileSpreadsheet className="h-8 w-8 mx-auto text-afcen-cream/40 mb-2" />
+              <p className="text-sm text-afcen-cream/60">
                 Drop a CSV file here or{" "}
-                <span className="text-emerald-400 font-medium">browse</span>
+                <span className="text-afcen-gold font-medium">browse</span>
               </p>
-              <p className="text-xs text-slate-500 mt-1">
+              <p className="text-xs text-afcen-cream/40 mt-1">
                 CSV with latitude & longitude columns
               </p>
               <input
@@ -671,17 +675,17 @@ function SiteSelectPanel({
             </div>
           ) : (
             <div className="space-y-3">
-              <div className="flex items-center justify-between rounded-md bg-slate-700/50 px-3 py-2">
+              <div className="flex items-center justify-between rounded-md bg-white/[0.03] px-3 py-2">
                 <div className="flex items-center gap-2 text-sm text-white min-w-0">
-                  <FileSpreadsheet className="h-4 w-4 text-emerald-400 shrink-0" />
+                  <FileSpreadsheet className="h-4 w-4 text-afcen-gold shrink-0" />
                   <span className="truncate">{fileName}</span>
-                  <span className="text-xs text-slate-400 shrink-0">
+                  <span className="text-xs text-afcen-cream/50 shrink-0">
                     ({parsedSites.length} site{parsedSites.length !== 1 ? "s" : ""})
                   </span>
                 </div>
                 <button
                   onClick={clearFile}
-                  className="text-slate-400 hover:text-white transition p-1"
+                  className="text-afcen-cream/40 hover:text-afcen-cream transition p-1"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -689,7 +693,7 @@ function SiteSelectPanel({
 
               {parsedSites.length > 1 && (
                 <div>
-                  <label className="block text-xs font-medium text-slate-400 mb-2">
+                  <label className="block text-xs font-medium text-afcen-cream/50 mb-2">
                     Select a site to analyze
                   </label>
                   <div className="space-y-1 max-h-64 overflow-y-auto rounded-md">
@@ -702,14 +706,14 @@ function SiteSelectPanel({
                         }}
                         className={`w-full flex items-center justify-between rounded-md px-3 py-2 text-left text-sm transition ${
                           selectedFileIdx === idx
-                            ? "bg-emerald-500/20 border border-emerald-500/30 text-white"
-                            : "bg-slate-700/50 text-slate-300 hover:bg-slate-700"
+                            ? "bg-afcen-gold/20 border border-afcen-gold/30 text-afcen-cream"
+                            : "bg-white/[0.03] text-afcen-cream/60 hover:bg-white/[0.06]"
                         }`}
                       >
                         <span className="truncate">
                           {site.name || `Site (row ${site.row})`}
                         </span>
-                        <span className="text-xs text-slate-400 shrink-0 ml-2">
+                        <span className="text-xs text-afcen-cream/50 shrink-0 ml-2">
                           {site.latitude.toFixed(4)}, {site.longitude.toFixed(4)}
                         </span>
                       </button>
@@ -743,7 +747,7 @@ function SiteSelectPanel({
       <button
         onClick={onSubmit}
         disabled={!latitude || !longitude || isLoading}
-        className="w-full flex items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed transition"
+        className="w-full flex items-center justify-center gap-2 rounded-lg bg-afcen-gold px-4 py-2.5 text-sm font-semibold text-afcen-navy hover:bg-afcen-gold-light disabled:opacity-50 disabled:cursor-not-allowed transition"
       >
         {isLoading ? (
           <>
@@ -759,8 +763,8 @@ function SiteSelectPanel({
       </button>
 
       {hasSelection && !isLoading && (
-        <div className="rounded-md bg-emerald-500/10 border border-emerald-500/20 p-3">
-          <p className="text-sm text-emerald-300">
+        <div className="rounded-md bg-afcen-gold/10 border border-afcen-gold/20 p-3">
+          <p className="text-sm text-afcen-gold">
             Site selected at {latitude}, {longitude}
           </p>
         </div>
@@ -793,8 +797,8 @@ function ReviewPanel({
   return (
     <div className="p-6 space-y-5 overflow-y-auto">
       <div>
-        <h2 className="text-lg font-semibold text-white">Review Site Data</h2>
-        <p className="mt-1 text-sm text-slate-400">
+        <h2 className="text-lg font-semibold text-afcen-cream">Review Site Data</h2>
+        <p className="mt-1 text-sm text-afcen-cream/50">
           World Bank DRE Atlas settlement data.
         </p>
       </div>
@@ -851,7 +855,7 @@ function ReviewPanel({
           </div>
         </div>
       ) : (
-        <div className="flex items-center gap-2 text-sm text-slate-400 py-4">
+        <div className="flex items-center gap-2 text-sm text-afcen-cream/50 py-4">
           <Loader2 className="h-4 w-4 animate-spin" />
           Loading settlement data...
         </div>
@@ -860,7 +864,7 @@ function ReviewPanel({
       <div className="flex gap-3">
         <button
           onClick={onBack}
-          className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-slate-700 px-4 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-600 transition"
+          className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-white/[0.06] px-4 py-2.5 text-sm font-medium text-afcen-cream/70 hover:bg-white/[0.10] transition"
         >
           <ArrowLeft className="h-4 w-4" />
           Back
@@ -868,7 +872,7 @@ function ReviewPanel({
         <button
           onClick={onProceed}
           disabled={!cluster || isAnalyzing}
-          className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-400 disabled:opacity-50 transition"
+          className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-afcen-gold px-4 py-2.5 text-sm font-semibold text-afcen-navy hover:bg-afcen-gold-light disabled:opacity-50 transition"
         >
           {isAnalyzing ? (
             <>
@@ -888,7 +892,7 @@ function ReviewPanel({
 }
 
 function SectionHeader({ label }: { label: string }) {
-  return <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 pt-1">{label}</h3>;
+  return <h3 className="text-xs font-semibold uppercase tracking-[0.15em] text-afcen-gold/70 pt-1">{label}</h3>;
 }
 
 /* ── DesignPanel ──────────────────────────────────────────── */
@@ -908,13 +912,13 @@ function DesignPanel({
   const dist = result.distribution;
   const gr = result.grid_risk;
 
-  const riskColor = gr.risk_level === "critical" ? "text-red-400" : gr.risk_level === "high" ? "text-orange-400" : gr.risk_level === "medium" ? "text-yellow-400" : "text-emerald-400";
+  const riskColor = gr.risk_level === "critical" ? "text-red-400" : gr.risk_level === "high" ? "text-orange-400" : gr.risk_level === "medium" ? "text-yellow-400" : "text-afcen-gold";
 
   return (
-    <div className="p-6 space-y-6 text-white overflow-y-auto">
+    <div className="p-6 space-y-6 text-afcen-cream overflow-y-auto">
       <div>
         <h2 className="text-lg font-semibold">System Design</h2>
-        <p className="mt-1 text-sm text-slate-400">
+        <p className="mt-1 text-sm text-afcen-cream/50">
           Mini-grid and distribution network design for {d.households} households.
         </p>
       </div>
@@ -932,7 +936,7 @@ function DesignPanel({
       {/* Solar Resource */}
       {sol && (
         <div className="space-y-2">
-          <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5">
+          <h3 className="text-sm font-medium text-afcen-cream/70 flex items-center gap-1.5">
             <Sun className="h-4 w-4 text-yellow-400" />
             Solar Resource
           </h3>
@@ -945,7 +949,7 @@ function DesignPanel({
 
       {/* System Sizing */}
       <div className="space-y-2">
-        <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5">
+        <h3 className="text-sm font-medium text-afcen-cream/70 flex items-center gap-1.5">
           <Battery className="h-4 w-4 text-blue-400" />
           Generation System
         </h3>
@@ -958,7 +962,7 @@ function DesignPanel({
       {/* Dispatch */}
       {s.annual_generation_kwh != null && (
         <div className="space-y-2">
-          <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5">
+          <h3 className="text-sm font-medium text-afcen-cream/70 flex items-center gap-1.5">
             <Zap className="h-4 w-4 text-amber-400" />
             Dispatch Simulation
           </h3>
@@ -974,7 +978,7 @@ function DesignPanel({
       {/* Distribution */}
       {dist && (
         <div className="space-y-2">
-          <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5">
+          <h3 className="text-sm font-medium text-afcen-cream/70 flex items-center gap-1.5">
             <Network className="h-4 w-4 text-cyan-400" />
             Distribution Network
           </h3>
@@ -1002,10 +1006,10 @@ function DesignPanel({
 
       {/* Nav */}
       <div className="flex gap-3">
-        <button onClick={onBack} className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-slate-700 px-4 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-600 transition">
+        <button onClick={onBack} className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-white/[0.06] px-4 py-2.5 text-sm font-medium text-afcen-cream/70 hover:bg-white/[0.10] transition">
           <ArrowLeft className="h-4 w-4" /> Back
         </button>
-        <button onClick={onNext} className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-400 transition">
+        <button onClick={onNext} className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-afcen-gold px-4 py-2.5 text-sm font-semibold text-afcen-navy hover:bg-afcen-gold-light transition">
           Optimize Costs <ArrowRight className="h-4 w-4" />
         </button>
       </div>
@@ -1052,10 +1056,10 @@ function OptimizePanel({
   const groups = ["Equipment", "Financial"];
 
   return (
-    <div className="p-6 space-y-6 text-white overflow-y-auto">
+    <div className="p-6 space-y-6 text-afcen-cream overflow-y-auto">
       <div>
         <h2 className="text-lg font-semibold">Optimize Costs</h2>
-        <p className="mt-1 text-sm text-slate-400">
+        <p className="mt-1 text-sm text-afcen-cream/50">
           Adjust equipment prices and financial parameters, then recalculate.
         </p>
       </div>
@@ -1074,14 +1078,14 @@ function OptimizePanel({
 
       {/* CAPEX breakdown bar */}
       <div className="space-y-2">
-        <h3 className="text-sm font-medium text-slate-300">CAPEX Breakdown</h3>
+        <h3 className="text-sm font-medium text-afcen-cream/70">CAPEX Breakdown</h3>
         <CapexBar breakdown={f.capex_breakdown} total={f.total_capex_usd} />
       </div>
 
       {/* Financial Structure */}
       <div className="space-y-2">
-        <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5">
-          <DollarSign className="h-4 w-4 text-emerald-400" />
+        <h3 className="text-sm font-medium text-afcen-cream/70 flex items-center gap-1.5">
+          <DollarSign className="h-4 w-4 text-afcen-gold" />
           Financial Structure
         </h3>
         <DataRow label="Cost-reflective tariff" value={`$${f.cost_reflective_tariff_usd.toFixed(3)}/kWh`} />
@@ -1096,15 +1100,15 @@ function OptimizePanel({
       {/* Editable cost inputs grouped */}
       {groups.map((group) => (
         <div key={group} className="space-y-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">{group} Inputs</h3>
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-afcen-cream/40">{group} Inputs</h3>
           {COST_FIELDS.filter((cf) => cf.group === group).map((p) => (
             <div key={p.key} className="flex items-center gap-2">
-              <label className="text-xs text-slate-400 w-[55%] shrink-0">{p.label}</label>
+              <label className="text-xs text-afcen-cream/50 w-[55%] shrink-0">{p.label}</label>
               <input
                 type="text"
                 value={overrides[p.key] ?? p.defaultValue}
                 onChange={(e) => onOverrideChange(p.key, e.target.value)}
-                className="flex-1 rounded-md bg-slate-700 border border-slate-600 px-2 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                className="flex-1 rounded-md bg-white/[0.05] border border-white/[0.08] px-2 py-1.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-afcen-gold/50"
               />
             </div>
           ))}
@@ -1132,10 +1136,10 @@ function OptimizePanel({
 
       {/* Nav */}
       <div className="flex gap-3">
-        <button onClick={onBack} className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-slate-700 px-4 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-600 transition">
+        <button onClick={onBack} className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-white/[0.06] px-4 py-2.5 text-sm font-medium text-afcen-cream/70 hover:bg-white/[0.10] transition">
           <ArrowLeft className="h-4 w-4" /> Design
         </button>
-        <button onClick={onNext} className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-400 transition">
+        <button onClick={onNext} className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-afcen-gold px-4 py-2.5 text-sm font-semibold text-afcen-navy hover:bg-afcen-gold-light transition">
           Generate Report <ArrowRight className="h-4 w-4" />
         </button>
       </div>
@@ -1198,10 +1202,10 @@ function ReportPanel({
   const conf = result.confidence;
 
   return (
-    <div className="p-6 space-y-6 text-white overflow-y-auto">
+    <div className="p-6 space-y-6 text-afcen-cream overflow-y-auto">
       <div>
         <h2 className="text-lg font-semibold">Pre-Feasibility Report</h2>
-        <p className="mt-1 text-sm text-slate-400">
+        <p className="mt-1 text-sm text-afcen-cream/50">
           {result.site.name || "Site"} — {d.households} HH, {s.pv_kwp.toFixed(0)} kWp PV, ${(f.total_capex_usd / 1000).toFixed(0)}k CAPEX
         </p>
       </div>
@@ -1237,7 +1241,7 @@ function ReportPanel({
       {/* Carbon Credits */}
       {carb && (
         <div className="space-y-2">
-          <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5">
+          <h3 className="text-sm font-medium text-afcen-cream/70 flex items-center gap-1.5">
             <Leaf className="h-4 w-4 text-green-400" />
             Carbon Credits
           </h3>
@@ -1253,12 +1257,12 @@ function ReportPanel({
       {/* Productive Use */}
       {pue && pue.sectors.filter((sec) => sec.relevance === "high" || sec.relevance === "medium").length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5">
+          <h3 className="text-sm font-medium text-afcen-cream/70 flex items-center gap-1.5">
             <Factory className="h-4 w-4 text-amber-400" />
             Productive Use
           </h3>
-          <div className="rounded-md bg-slate-700/50 p-3 space-y-2">
-            <p className="text-xs text-slate-400">
+          <div className="rounded-md bg-white/[0.03] p-3 space-y-2">
+            <p className="text-xs text-afcen-cream/50">
               {pue.sectors.filter((sec) => sec.relevance === "high").length} high-relevance,{" "}
               {pue.sectors.filter((sec) => sec.relevance === "medium").length} medium-relevance sectors
             </p>
@@ -1267,8 +1271,8 @@ function ReportPanel({
               .slice(0, 5)
               .map((sec) => (
                 <div key={sec.sector} className="flex items-center justify-between text-xs">
-                  <span className="text-slate-300">{sec.sector}</span>
-                  <span className={sec.relevance === "high" ? "text-emerald-400 font-medium" : "text-yellow-400"}>
+                  <span className="text-afcen-cream/60">{sec.sector}</span>
+                  <span className={sec.relevance === "high" ? "text-afcen-gold font-medium" : "text-yellow-400"}>
                     {sec.relevance} — {sec.estimated_demand_kwh_day.toFixed(0)} kWh/day
                   </span>
                 </div>
@@ -1288,7 +1292,7 @@ function ReportPanel({
       {/* Climate */}
       {climate && (
         <div className="space-y-2">
-          <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5">
+          <h3 className="text-sm font-medium text-afcen-cream/70 flex items-center gap-1.5">
             <ThermometerSun className="h-4 w-4 text-orange-400" />
             Climate Rationale
           </h3>
@@ -1303,7 +1307,7 @@ function ReportPanel({
       {/* ESS */}
       {ess && (
         <div className="space-y-2">
-          <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5">
+          <h3 className="text-sm font-medium text-afcen-cream/70 flex items-center gap-1.5">
             <TreePine className="h-4 w-4 text-green-400" />
             Environmental & Social
           </h3>
@@ -1320,15 +1324,15 @@ function ReportPanel({
           <h3 className={`text-sm font-medium flex items-center gap-1.5 ${
             riskAn.overall_risk_level === "critical" ? "text-red-400" :
             riskAn.overall_risk_level === "high" ? "text-orange-400" :
-            riskAn.overall_risk_level === "medium" ? "text-yellow-400" : "text-emerald-400"
+            riskAn.overall_risk_level === "medium" ? "text-yellow-400" : "text-afcen-gold"
           }`}>
             <AlertOctagon className="h-4 w-4" />
             Risk: {riskAn.overall_risk_level.charAt(0).toUpperCase() + riskAn.overall_risk_level.slice(1)}
           </h3>
           <DataRow label="Risk Score" value={`${riskAn.overall_risk_score.toFixed(1)} / 25`} />
           {riskAn.top_risks.slice(0, 3).map((risk, i) => (
-            <div key={i} className="rounded-md bg-slate-700/50 px-3 py-2">
-              <span className="text-xs text-slate-300">{i + 1}. {risk}</span>
+            <div key={i} className="rounded-md bg-white/[0.03] px-3 py-2">
+              <span className="text-xs text-afcen-cream/60">{i + 1}. {risk}</span>
             </div>
           ))}
         </div>
@@ -1337,24 +1341,24 @@ function ReportPanel({
       {/* Confidence */}
       {conf && (
         <div className="space-y-2">
-          <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5">
+          <h3 className="text-sm font-medium text-afcen-cream/70 flex items-center gap-1.5">
             <BarChart3 className="h-4 w-4 text-indigo-400" />
             Data Confidence
           </h3>
-          <div className="rounded-md bg-slate-700/50 p-3">
+          <div className="rounded-md bg-white/[0.03] p-3">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-slate-400">Overall Confidence</span>
+              <span className="text-xs text-afcen-cream/50">Overall Confidence</span>
               <span className={`text-sm font-bold ${
-                conf.overall_confidence_level === "high" ? "text-emerald-400" :
+                conf.overall_confidence_level === "high" ? "text-afcen-gold" :
                 conf.overall_confidence_level === "medium" ? "text-yellow-400" : "text-red-400"
               }`}>
                 {conf.overall_confidence_score}%
               </span>
             </div>
-            <div className="w-full bg-slate-600 rounded-full h-2">
+            <div className="w-full bg-white/[0.1] rounded-full h-2">
               <div
                 className={`h-2 rounded-full ${
-                  conf.overall_confidence_score >= 75 ? "bg-emerald-400" :
+                  conf.overall_confidence_score >= 75 ? "bg-afcen-gold" :
                   conf.overall_confidence_score >= 50 ? "bg-yellow-400" : "bg-red-400"
                 }`}
                 style={{ width: `${conf.overall_confidence_score}%` }}
@@ -1367,12 +1371,12 @@ function ReportPanel({
 
       {/* Download buttons */}
       <div className="space-y-2">
-        <h3 className="text-sm font-medium text-slate-300 flex items-center gap-1.5">
-          <Briefcase className="h-4 w-4 text-slate-300" />
+        <h3 className="text-sm font-medium text-afcen-cream/70 flex items-center gap-1.5">
+          <Briefcase className="h-4 w-4 text-afcen-cream/60" />
           Generate Reports
         </h3>
         <div className="flex gap-3">
-          <button onClick={() => handleDownload("pdf")} disabled={downloading === "pdf"} className="flex-1 rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-400 disabled:opacity-50 transition">
+          <button onClick={() => handleDownload("pdf")} disabled={downloading === "pdf"} className="flex-1 rounded-lg bg-afcen-gold px-4 py-2.5 text-sm font-semibold text-afcen-navy hover:bg-afcen-gold-light disabled:opacity-50 transition">
             {downloading === "pdf" ? "Generating..." : "HTML Report"}
           </button>
           <button onClick={() => handleDownload("pfs")} disabled={downloading === "pfs"} className="flex-1 rounded-lg bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-400 disabled:opacity-50 transition">
@@ -1392,7 +1396,7 @@ function ReportPanel({
         </div>
       </div>
 
-      <button onClick={onBack} className="w-full flex items-center justify-center gap-2 rounded-lg bg-slate-700 px-4 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-600 transition">
+      <button onClick={onBack} className="w-full flex items-center justify-center gap-2 rounded-lg bg-white/[0.06] px-4 py-2.5 text-sm font-medium text-afcen-cream/70 hover:bg-white/[0.10] transition">
         <ArrowLeft className="h-4 w-4" /> Back to Optimize
       </button>
     </div>
@@ -1410,7 +1414,7 @@ function CapexBar({
     { label: "PV", value: breakdown.pv, color: "bg-yellow-400" },
     { label: "Battery", value: breakdown.battery, color: "bg-blue-400" },
     { label: "Inverter", value: breakdown.inverter, color: "bg-purple-400" },
-    { label: "Distribution", value: breakdown.distribution, color: "bg-emerald-400" },
+    { label: "Distribution", value: breakdown.distribution, color: "bg-afcen-gold" },
     { label: "Meters", value: breakdown.meters, color: "bg-cyan-400" },
     { label: "Install", value: breakdown.installation, color: "bg-orange-400" },
     { label: "Soft", value: breakdown.soft_costs, color: "bg-pink-400" },
@@ -1432,8 +1436,8 @@ function CapexBar({
         {items.map((item) => (
           <div key={item.label} className="flex items-center gap-1.5 text-xs">
             <span className={`w-2 h-2 rounded-full ${item.color}`} />
-            <span className="text-slate-400">{item.label}</span>
-            <span className="ml-auto text-slate-300">
+            <span className="text-afcen-cream/50">{item.label}</span>
+            <span className="ml-auto text-afcen-cream/60">
               ${(item.value / 1000).toFixed(0)}k
             </span>
           </div>
@@ -1446,14 +1450,14 @@ function CapexBar({
 function DataRow({ label, value, tip }: { label: string; value: string; tip?: string }) {
   const [showTip, setShowTip] = useState(false);
   return (
-    <div className="rounded-md bg-slate-700/50 px-3 py-2">
+    <div className="rounded-md bg-white/[0.03] border border-white/[0.04] px-3 py-2">
       <div className="flex items-center justify-between">
-        <span className="text-xs text-slate-400 flex items-center gap-1">
+        <span className="text-xs text-afcen-cream/50 flex items-center gap-1">
           {label}
           {tip && (
             <button
               onClick={() => setShowTip(!showTip)}
-              className="text-slate-500 hover:text-slate-300 transition"
+              className="text-afcen-cream/25 hover:text-afcen-gold transition"
               title="More info"
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1463,10 +1467,10 @@ function DataRow({ label, value, tip }: { label: string; value: string; tip?: st
             </button>
           )}
         </span>
-        <span className="text-sm font-medium text-white">{value}</span>
+        <span className="text-sm font-medium text-afcen-cream">{value}</span>
       </div>
       {tip && showTip && (
-        <p className="mt-1.5 text-[11px] leading-relaxed text-slate-400 border-t border-slate-600/50 pt-1.5">{tip}</p>
+        <p className="mt-1.5 text-[11px] leading-relaxed text-afcen-cream/40 border-t border-white/[0.06] pt-1.5">{tip}</p>
       )}
     </div>
   );
@@ -1474,9 +1478,9 @@ function DataRow({ label, value, tip }: { label: string; value: string; tip?: st
 
 function MetricCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg bg-slate-700/50 border border-slate-600/50 p-3">
-      <p className="text-xs text-slate-400">{label}</p>
-      <p className="text-lg font-bold text-emerald-400">{value}</p>
+    <div className="rounded-lg bg-white/[0.03] border border-white/[0.06] p-3">
+      <p className="text-xs text-afcen-cream/50">{label}</p>
+      <p className="text-lg font-bold text-afcen-gold">{value}</p>
     </div>
   );
 }
@@ -1527,7 +1531,7 @@ function PrioritySitesPanel({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-8 gap-2 text-slate-400 text-sm">
+      <div className="flex items-center justify-center py-8 gap-2 text-afcen-cream/40 text-sm">
         <Loader2 className="h-4 w-4 animate-spin" />
         Loading priority sites...
       </div>
@@ -1538,19 +1542,19 @@ function PrioritySitesPanel({
     <div className="space-y-3">
       <div className="flex gap-2">
         <div className="flex-1 relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-afcen-cream/40" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by name or district..."
-            className="w-full rounded-md bg-slate-700 border border-slate-600 pl-8 pr-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+            className="w-full rounded-md bg-white/[0.05] border border-white/[0.08] pl-8 pr-3 py-2 text-sm text-afcen-cream placeholder:text-afcen-cream/30 focus:outline-none focus:ring-1 focus:ring-afcen-gold/50"
           />
         </div>
         <select
           value={province}
           onChange={(e) => setProvince(e.target.value)}
-          className="rounded-md bg-slate-700 border border-slate-600 px-2 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+          className="rounded-md bg-white/[0.05] border border-white/[0.08] px-2 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-afcen-gold/50"
         >
           <option value="">All provinces</option>
           {provinces.map((p) => (
@@ -1561,7 +1565,7 @@ function PrioritySitesPanel({
         </select>
       </div>
 
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-afcen-cream/40">
         {filtered.length} site{filtered.length !== 1 ? "s" : ""} found
         {province ? ` in ${province}` : ""}
       </p>
@@ -1576,8 +1580,8 @@ function PrioritySitesPanel({
             }}
             className={`w-full rounded-md px-3 py-2.5 text-left transition ${
               selectedId === site.id
-                ? "bg-emerald-500/20 border border-emerald-500/30"
-                : "bg-slate-700/50 hover:bg-slate-700 border border-transparent"
+                ? "bg-afcen-gold/20 border border-afcen-gold/30"
+                : "bg-white/[0.03] hover:bg-white/[0.06] border border-transparent"
             }`}
           >
             <div className="flex items-center justify-between">
@@ -1589,23 +1593,23 @@ function PrioritySitesPanel({
                 {site.score.toFixed(1)}
               </span>
             </div>
-            <div className="flex items-center gap-3 mt-1 text-xs text-slate-400">
+            <div className="flex items-center gap-3 mt-1 text-xs text-afcen-cream/50">
               <span>{site.province}, {site.district}</span>
             </div>
-            <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
+            <div className="flex items-center gap-3 mt-1 text-xs text-afcen-cream/40">
               <span className="flex items-center gap-1">
                 <Users className="h-3 w-3" />
                 {site.population.toLocaleString()}
               </span>
               <span>{site.demand_kwh_day.toFixed(0)} kWh/day</span>
               <span>{site.dist_grid_km.toFixed(1)} km to grid</span>
-              {site.has_health && <span className="text-emerald-500">Health</span>}
+              {site.has_health && <span className="text-afcen-gold">Health</span>}
               {site.has_education && <span className="text-blue-400">Edu</span>}
             </div>
           </button>
         ))}
         {filtered.length === 0 && (
-          <div className="text-center py-6 text-sm text-slate-500">
+          <div className="text-center py-6 text-sm text-afcen-cream/40">
             No sites match your filters
           </div>
         )}
