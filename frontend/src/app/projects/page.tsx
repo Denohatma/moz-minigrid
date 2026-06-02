@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Zap, Plus, FolderOpen } from "lucide-react";
+import { Zap, FolderOpen } from "lucide-react";
 
 export default function ProjectsPage() {
   return (
@@ -14,13 +14,20 @@ export default function ProjectsPage() {
             <span className="text-slate-500">/</span>
             <span className="text-sm text-slate-300">Projects</span>
           </div>
-          <Link
-            href="/analyze"
-            className="flex items-center gap-2 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-400 transition"
-          >
-            <Plus className="h-4 w-4" />
-            New Analysis
-          </Link>
+          <nav className="flex items-center gap-4">
+            <Link href="/analyze" className="text-sm text-slate-400 hover:text-white transition">
+              New Analysis
+            </Link>
+            <Link href="/projects" className="text-sm text-white font-medium">
+              Projects
+            </Link>
+            <Link href="/opportunities" className="text-sm text-slate-400 hover:text-white transition">
+              Opportunities
+            </Link>
+            <Link href="/portfolios" className="text-sm text-slate-400 hover:text-white transition">
+              Portfolios
+            </Link>
+          </nav>
         </div>
       </header>
 

@@ -536,6 +536,207 @@ export interface ChatMessage {
   content: string;
 }
 
+// ── Opportunities ──────────────────────────────────────────────
+
+export interface Opportunity {
+  id: string;
+  project_name: string;
+  province: string;
+  district?: string;
+  latitude?: number;
+  longitude?: number;
+  cluster_id?: number;
+  status: "scoped" | "floated" | "submitted";
+  program_name: string;
+  connections_targeted?: number;
+  pue_value_chains?: string[];
+  pv_capacity_kwp?: number;
+  battery_capacity_kwh?: number;
+  distribution_line_length_m?: number;
+  total_capex_usd?: number;
+  cost_per_connection_usd?: number;
+  grant_per_connection_usd?: number;
+  lcoe_usd_kwh?: number;
+  irr_pct?: number;
+  payback_years?: number;
+  analysis_id?: string;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export type OpportunityCreate = Omit<Opportunity, "id" | "created_at" | "updated_at">;
+
+export async function fetchOpportunities(params?: {
+  status?: string;
+  province?: string;
+  program?: string;
+}): Promise<Opportunity[]> {
+  const qs = new URLSearchParams();
+  if (params?.status) qs.set("status", params.status);
+  if (params?.province) qs.set("province", params.province);
+  if (params?.program) qs.set("program", params.program);
+  const res = await fetch(`${API_BASE}/api/opportunities?${qs}`);
+  if (!res.ok) throw new Error("Failed to load opportunities");
+  return res.json();
+}
+
+export async function createOpportunity(data: OpportunityCreate): Promise<Opportunity> {
+  const res = await fetch(`${API_BASE}/api/opportunities`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Failed to create opportunity");
+  return res.json();
+}
+
+export async function updateOpportunity(
+  id: string,
+  data: Partial<OpportunityCreate>
+): Promise<Opportunity> {
+  const res = await fetch(`${API_BASE}/api/opportunities/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Failed to update opportunity");
+  return res.json();
+}
+
+export async function deleteOpportunity(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/opportunities/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to delete opportunity");
+}
+
+// ── Portfolios ─────────────────────────────────────────────────
+
+export interface PortfolioSummary {
+  id: string;
+  name: string;
+  description?: string;
+  status: "draft" | "published" | "under_review" | "awarded" | "closed";
+  opportunity_count: number;
+  submission_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Portfolio extends Omit<PortfolioSummary, "opportunity_count" | "submission_count"> {
+  opportunities: Opportunity[];
+}
+
+export async function fetchPortfolios(status?: string): Promise<PortfolioSummary[]> {
+  const qs = status ? `?status=${status}` : "";
+  const res = await fetch(`${API_BASE}/api/portfolios${qs}`);
+  if (!res.ok) throw new Error("Failed to load portfolios");
+  return res.json();
+}
+
+export async function fetchPortfolio(id: string): Promise<Portfolio> {
+  const res = await fetch(`${API_BASE}/api/portfolios/${id}`);
+  if (!res.ok) throw new Error("Failed to load portfolio");
+  return res.json();
+}
+
+export async function createPortfolio(data: {
+  name: string;
+  description?: string;
+  opportunity_ids: string[];
+}): Promise<Portfolio> {
+  const res = await fetch(`${API_BASE}/api/portfolios`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Failed to create portfolio");
+  return res.json();
+}
+
+export async function updatePortfolio(
+  id: string,
+  data: { name?: string; description?: string; status?: string }
+): Promise<Portfolio> {
+  const res = await fetch(`${API_BASE}/api/portfolios/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Failed to update portfolio");
+  return res.json();
+}
+
+export async function deletePortfolio(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/portfolios/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to delete portfolio");
+}
+
+// ── Submissions ────────────────────────────────────────────────
+
+export interface Submission {
+  id: string;
+  portfolio_id: string;
+  bidder_name: string;
+  bidder_organization?: string;
+  contact_email?: string;
+  status: "pending" | "under_review" | "shortlisted" | "accepted" | "rejected";
+  proposed_capex_usd?: number;
+  proposed_grant_ask_usd?: number;
+  proposed_tariff_usd_kwh?: number;
+  proposed_lcoe_usd_kwh?: number;
+  proposed_irr_pct?: number;
+  proposed_timeline_months?: number;
+  technical_approach?: string;
+  experience_summary?: string;
+  scoring_technical?: number;
+  scoring_financial?: number;
+  scoring_experience?: number;
+  scoring_total?: number;
+  documents?: Record<string, unknown>[];
+  notes?: string;
+  submitted_at: string;
+  reviewed_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function fetchSubmissions(
+  portfolioId: string,
+  status?: string
+): Promise<Submission[]> {
+  const qs = status ? `?status=${status}` : "";
+  const res = await fetch(`${API_BASE}/api/portfolios/${portfolioId}/submissions${qs}`);
+  if (!res.ok) throw new Error("Failed to load submissions");
+  return res.json();
+}
+
+export async function createSubmission(
+  portfolioId: string,
+  data: Omit<Submission, "id" | "submitted_at" | "reviewed_at" | "created_at" | "updated_at">
+): Promise<Submission> {
+  const res = await fetch(`${API_BASE}/api/portfolios/${portfolioId}/submissions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Failed to create submission");
+  return res.json();
+}
+
+export async function updateSubmission(
+  portfolioId: string,
+  submissionId: string,
+  data: Partial<Submission>
+): Promise<Submission> {
+  const res = await fetch(`${API_BASE}/api/portfolios/${portfolioId}/submissions/${submissionId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Failed to update submission");
+  return res.json();
+}
+
 export async function streamChat(
   message: string,
   history: ChatMessage[],

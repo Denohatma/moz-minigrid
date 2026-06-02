@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import sites, analysis, reports, chat
+from app.routers import sites, analysis, reports, chat, opportunities, portfolios
 
 app = FastAPI(
     title="Moz — Mini-Grid Prefeasibility API",
@@ -25,6 +25,8 @@ app.include_router(sites.router, prefix="/api/sites", tags=["sites"])
 app.include_router(analysis.router, prefix="/api", tags=["analysis"])
 app.include_router(reports.router, prefix="/api/reports", tags=["reports"])
 app.include_router(chat.router, prefix="/api", tags=["chat"])
+app.include_router(opportunities.router, prefix="/api/opportunities", tags=["opportunities"])
+app.include_router(portfolios.router, prefix="/api/portfolios", tags=["portfolios"])
 
 
 @app.get("/health")

@@ -23,6 +23,18 @@ export default function Home() {
             >
               Projects
             </Link>
+            <Link
+              href="/opportunities"
+              className="text-sm text-slate-300 hover:text-white transition"
+            >
+              Opportunities
+            </Link>
+            <Link
+              href="/portfolios"
+              className="text-sm text-slate-300 hover:text-white transition"
+            >
+              Portfolios
+            </Link>
           </nav>
         </div>
       </header>
